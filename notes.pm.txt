@@ -1,0 +1,193 @@
+virtually no comments, nor any design descriptions
+
+
+no empty lines in method bodies and class definitions anywhere, 
+to separate things like variable declarations from method calls.
+
+
+rai:: namespace prefixes, even for method definitions and variable types
+that are clearly part of that namespace
+
+
+
+
+
+constructor calls instead of assignments, e.g.
+    
+    auto node_l (shared_from_this ());
+    
+    for (auto i (peers.begin ()), n (peers.end ()); i != n; ++i)    
+
+
+
+a space directly before the opening parenthesis of a method call and template
+specifiers, e.g.
+
+    endpoint_l = rai::endpoint (boost::asio::ip::address_v6::v4_mapped (endpoint_l.address ().to_v4 ()), endpoint_l.port ());
+
+    auto existing (blocks.get <1> ().find (hash));
+    
+
+making complex statement especially hard to parse, as whitespace 
+can't be trusted to separate logical elements, while also mimicing
+the frequently used C++ lambda functions, e.g.
+
+    send_buffer (buffer_a->data (), buffer_a->size (), endpoint_a, [buffer_a, node_w, endpoint_a] (boost::system::error_code const & ec, size_t size)
+    {...}
+    
+    
+    
+unexplained (and unconventional) suffixes on variables _a ("a ..."?) and _l (local?), where use
+of auto to declare variables doesn't help in understanding the types involved, e.g.
+    
+    void rai::node::send_keepalive (rai::endpoint const & endpoint_a)
+    {
+        auto endpoint_l (endpoint_a);
+        if (endpoint_l.address ().is_v4 ())
+        {
+            endpoint_l = rai::endpoint (boost::asio::ip::address_v6::v4_mapped (endpoint_l.address ().to_v4 ()), endpoint_l.port ());
+        }
+        assert (endpoint_l.address ().is_v6 ());
+        network.send_keepalive (endpoint_l);
+    }
+    
+    
+    
+with constructor calls member initializations before the block are not
+indented, leading to hard to parse method definitions, as the constructor
+call doesn't stand out. e.g.
+
+    rai::network::network (rai::node & node_a, uint16_t port) :
+    socket (node_a.service, rai::endpoint (boost::asio::ip::address_v6::any (), port)),
+    resolver (node_a.service),
+    node (node_a),
+    bad_sender_count (0),
+    on (true),
+    insufficient_work_count (0),
+    error_count (0)
+    {
+    }
+    
+    
+often a "result" variable is returned from a method, but its value
+is *negated* w.r.t. success. it's therefore best to think of "result" as
+being called "failure". however, a variable named "error" is also
+sometimes used, but it's value *is* what you expect it to be. example:
+
+    bool rai::wallet_store::rekey (MDB_txn * transaction_a, std::string const & password_a)
+    {
+        bool result (false);                    <--- by default, operation succeeds!
+        if (valid_password (transaction_a))     <--- valid_password() return value as expected by method name
+        {                                       <--- when this block is executed a valid password was present
+            rai::raw_key password_new;
+            derive_key (password_new, transaction_a, password_a);
+            rai::raw_key wallet_key_l;
+            wallet_key (wallet_key_l, transaction_a);
+            rai::raw_key password_l;
+            password.value (password_l);
+            password.value_set (password_new);
+            rai::uint256_union encrypted;
+            encrypted.encrypt (wallet_key_l, password_new, salt (transaction_a).owords [0]);
+            entry_put_raw (transaction_a, rai::wallet_store::wallet_key_special, rai::wallet_value (encrypted, 0));
+        }
+        else
+        {
+            result = true;                      <--- here, NO valid password was found, but method result is TRUE
+        }
+        return result;
+    }
+
+    
+in many cases an early-out of the result value can be used, instead of 
+assigning a value to "result" in multiple plaqces and having only a single return at the end
+of the method, e.g.
+    
+    bool rai::parse_address_port (std::string const & string, boost::asio::ip::address & address_a, uint16_t & port_a)
+    {
+        auto result (false);
+        auto port_position (string.rfind (':'));
+        if (port_position != std::string::npos && port_position > 0)
+        {
+            std::string port_string (string.substr (port_position + 1));
+            try
+            {
+                uint16_t port;
+                result = parse_port (port_string, port);
+                if (!result)
+                {
+                    boost::system::error_code ec;
+                    auto address (boost::asio::ip::address_v6::from_string (string.substr (0, port_position), ec));
+                    if (ec == 0)
+                    {
+                        address_a = address;
+                        port_a = port;
+                    }
+                    else
+                    {
+                        result = true;
+                    }
+                }
+                else
+                {
+                    result = true;
+                }
+            }
+            catch (...)
+            {
+                result = true;
+            }
+        }
+        else
+        {
+            result = true;
+        }
+        return result;
+    }
+    
+
+
+lots of nesting of if-statements, where it seems using early-outs 
+(by testing the negative value) would make the code much more readable.
+for example:
+    
+
+
+
+curly braces around single-line statements. this makes sense for defending
+against incorrectly missing grouping of statements when adding code, 
+but leads to quite a bit of extra lines for simple code, e.g.
+
+	if (result != end)
+	{
+		if (rai::uint256_union (result->first.uint256 ()) == key)
+		{
+			return result;
+		}
+		else
+		{
+			return end;
+		}
+	}
+	else
+	{
+		return end;
+	}
+
+    
+
+else clauses that only contain a comment but no actual code, e.g.
+    
+			if (!error)
+			{
+				node_a.background ([wallet] ()
+				{
+					wallet->enter_initial_password ();
+				});
+				items [id] = wallet;
+			}
+			else
+			{
+				// Couldn't open wallet
+			}
+            
+            

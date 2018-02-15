@@ -4,10 +4,11 @@ import hashlib
 
 def bin2hex(s):
     assert isinstance(s, bytes)
-    r = []
-    for c in s:
-        r.append('%02x' % c)
-    return ''.join(r).upper()
+    return s.hex().upper()
+    
+def hex2bin(h):
+    assert isinstance(h, str)
+    return bytes.fromhex(h)
     
 def int2hex(v):
     print(v)

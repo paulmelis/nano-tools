@@ -138,8 +138,14 @@ DATADIR = 'RaiBlocks'
 DBPREFIX = 'data.ldb'
 
 SUBDBS = ['accounts', 'blocks_info', 'change', 'checksum', 'frontiers', 'meta', 'open', 'pending', 'receive', 'representation', 'send', 'unchecked', 'unsynced', 'vote']
-#SUBDBS = ['vote']
+SUBDBS = ['send']
 
+
+env = lmdb.Environment(
+        os.path.join(os.environ['HOME'],DATADIR,DBPREFIX), subdir=False, readonly=True,
+        map_size=10*1024*1024*1024, max_dbs=16)
+
+# XXX not used yet
 # lib/blocks.hpp, enum class block_type
 class BlockType(Enum):
     INVALID = 0
@@ -148,11 +154,36 @@ class BlockType(Enum):
     RECEIVE = 3
     OPEN = 4
     CHANGE = 5
+    
+    
+def find_block_type(blockhash, value=False):
+    
+    assert isinstance(blockhash, str)
+    
+    blockhash = hex2bin(blockhash)
+    
+    # Roughly in order of decreasing occurrence
+    for subdbname in ['send', 'receive', 'open', 'change', 'vote']:
+        
+        subdb = env.open_db(subdbname.encode())
+
+        with env.begin(write=False) as tx:
+            
+            cur = tx.cursor(subdb)
+            if cur.set_range(blockhash):
+                if value:
+                    return subdbname, cur.value()
+                return subdbname
+            
+    return None
+    
+#print(find_block_type('870E346AB08AC27A4B6413323BA129654783835DE9132FC0BF7ACE0D22273625'))
+#doh
 
 
-env = lmdb.Environment(
-        os.path.join(os.environ['HOME'],DATADIR,DBPREFIX), subdir=False, readonly=True,
-        map_size=10*1024*1024*1024, max_dbs=16)
+
+
+
         
 for subdbname in SUBDBS:
     
@@ -207,7 +238,8 @@ for subdbname in SUBDBS:
                 print('... account %s (%s)' % (bin2hex(account), encode_account(account)))
                 print('... balance %s (%.6f Mxrb)' % (bin2hex(balance), bin2balance(balance)))
                 
-            elif subdbname == 'frontiers':                      
+            elif subdbname == 'frontiers':       
+                # Key is last block in the account chain
     
                 account = value[:32]
                 assert len(value[32:]) == 0
@@ -298,7 +330,7 @@ for subdbname in SUBDBS:
                 # blocks.cpp, deserialize_block(stream, type), rai::send_block members
                 
                 previous_block = value[:32]
-                destination_block = value[32:64]
+                destination = value[32:64]
                 balance = value[64:80]
                 signature = value[80:144]
                 work = unpack('<Q', value[144:152])[0]
@@ -307,7 +339,7 @@ for subdbname in SUBDBS:
                 
                 print('Send block %s' % bin2hex(key))
                 print('... previous block %s' % bin2hex(previous_block))
-                print('... destination block %s' % bin2hex(destination_block))
+                print('... destination %s (%s)' % (destination, encode_account(destination)))
                 print('... balance %s (%.6f Mxrb)' % (bin2hex(balance), bin2balance(balance)))
                 print('... signature %s' % bin2hex(signature))
                 print('... work %08x' % work)
