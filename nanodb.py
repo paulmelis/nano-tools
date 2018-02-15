@@ -12,9 +12,13 @@ class NanoDatabase:
     def __init__(self, dbfile):
         self.db = apsw.Connection(dbfile, flags=apsw.SQLITE_OPEN_READONLY)
         
+    def account_from_id(self, id):
+        assert isinstance(id, int)
+        return Account(self.db, id)      
+        
     def account_from_address(self, addr):
         cur = self.db.cursor()
-        cur.execute('select id from accounts where account=?', (addr,))
+        cur.execute('select id from accounts where address=?', (addr,))
         row = next(cur)
         if row is None:
             raise ValueError('Unknown account')
@@ -32,7 +36,16 @@ class NanoDatabase:
             raise ValueError('No block with hash %s found' % hash)
         return Block(self.db, int(row[0]))
         
+    def accounts(self):
+        res = []
+        cur = self.db.cursor()
+        cur.execute('select id, address from accounts')
+        for id, addr in cur:
+            res.append(Account(self.db, id, addr))
+        return res
+        
     def cursor(self):
+        """For when you know what you're doing..."""
         return self.db.cursor()
         
 class Account:
@@ -42,7 +55,7 @@ class Account:
         self.id = id
         if address is None:
             cur = self.db.cursor()
-            cur.execute('select account from accounts where id=?', (id,))
+            cur.execute('select address from accounts where id=?', (id,))
             address = next(cur)[0]
         self.address = address
         self.open_block = None

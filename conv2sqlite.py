@@ -13,6 +13,18 @@ begin;
 drop table if exists accounts;
 drop table if exists blocks;
 
+create table accounts (
+    id          integer not null,
+    address     text not null,      -- xrb_....   
+
+    -- could store derived quantities, like
+    -- number of blocks
+    -- balance
+    
+    primary key(id),
+    unique(address)
+);
+
 create table blocks (
     id          integer not null,
     hash        text not null,
@@ -20,29 +32,21 @@ create table blocks (
     
     -- All blocks
     previous    integer,            -- Can be NULL for an open block
-    next        integer,            -- "successor"
+    next        integer,            -- "successor", called "next" to match "previous"
     signature   text not null,
     
-    -- Depends on block type
+    -- Depending on block type
     work            text,           -- change, open, receive, send
     representative  integer,        -- change
     source          integer,        -- open, receive
     destination     integer,        -- send
-    balance         text,           -- send             -- type?
+    balance         text,           -- send             -- XXX improve method of storing value, use fixed point string repr
     account         integer,        -- open, vote
-    sequence_number integer,        -- vote
+    --sequence_number integer,        -- vote
     --block           text,           -- vote
     
     primary key(id),
     unique(hash)
-);
-
-create table accounts (
-    id          integer not null,
-    account     text not null,      -- xrb_....     -- rename to address?
-    
-    primary key(id),
-    unique(account)
 );
 
 commit;
@@ -58,7 +62,7 @@ sqlcur.execute(SCHEMA)
 block_ids = {}
 next_block_id = 1
 
-# Map account name ('xrb_...') to integer ID (starting at 1)
+# Map account address ('xrb_...') to integer ID (starting at 1)
 account_ids = {}
 next_account_id = 1
 
@@ -75,13 +79,13 @@ def get_block_id(blockhash):
         next_block_id += 1
         return next_block_id-1
 
-def get_account_id(accname):
+def get_account_id(address):
     
     global next_account_id
     try:
-        return account_ids[accname]
+        return account_ids[address]
     except KeyError:
-        account_ids[accname] = next_account_id
+        account_ids[address] = next_account_id
         next_account_id += 1
         return next_account_id-1
 
@@ -245,11 +249,12 @@ for subdbname in ['change', 'open', 'receive', 'send']:
         
 sqlcur.execute('begin')
 
-for account, id in account_ids.items():
-    sqlcur.execute('insert into accounts (id, account) values (?,?)',
-        (id, account))
+for address, id in account_ids.items():
+    sqlcur.execute('insert into accounts (id, address) values (?,?)',
+        (id, address))
 
 sqlcur.execute('end')
 
-# Store for each block to which account chain it belongs, can reuse account ids for this
+# Store for each block to which account chain it belongs, can reuse account ids for this.
+# This gives a direct mapping from block to chain/account
             
