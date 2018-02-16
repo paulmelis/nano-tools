@@ -7,6 +7,9 @@ from rainumbers import *
 DATADIR = 'RaiBlocks'
 DBPREFIX = 'data.ldb'
 
+# XXX Store for each block to which account chain it belongs, can reuse account ids for this.
+# This gives a direct mapping from block to chain/account
+
 SCHEMA = """
 begin;
 
@@ -50,6 +53,18 @@ create table blocks (
 );
 
 commit;
+"""
+
+CREATE_INDICES = """
+create index accounts_address on accounts (address);
+
+create index blocks_source on blocks (source);
+create index blocks_destination on blocks (source);
+create index blocks_account on blocks (account);
+create index blocks_balance on blocks (balance);
+create index blocks_next on blocks (next);
+create index blocks_previous on blocks (previous);
+create index blocks_type on blocks (type);
 """
 
 dbfile = sys.argv[1]

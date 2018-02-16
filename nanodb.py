@@ -72,12 +72,16 @@ class Account:
         self.open_block = Block(self.db, next(cur)[0])
         return self.open_block
         
-    def chain(self):
-        """Return all blocks in the chain, open block first"""
+    def chain(self, type=None):
+        """
+        Return all blocks in the chain, in sequence, open block first.
+        If type is set only blocks of the requested type will be returned.
+        """
         res = []
         b = self.first_block()
         while b is not None:
-            res.append(b)
+            if type is not None and b.type == type:
+                res.append(b)
             b = b.next()
         return res
 
