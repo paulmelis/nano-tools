@@ -17,9 +17,20 @@ def int2hex(v):
     assert s.startswith('0x')
     return s[2:].upper()
     
+def bin2balance_raw(b):
+    """
+    raw (a.k.a. xrb)
+    Returns a long integer, which has the required 128-bit precision
+    """
+    assert isinstance(b, bytes)
+    return int.from_bytes(b, 'big')
 
-def bin2balance(b):
-    """Mxrb (a.k.a. XRB)"""
+def bin2balance_mxrb(b):
+    """
+    Mxrb (a.k.a. XRB)
+    The returned floating-point value will not be fully precise, as it
+    has only 8 bytes of precision and not the needed 16 bytes (128 bits).
+    """
     assert isinstance(b, bytes)
     return 1.0 * int.from_bytes(b, 'big') / (10**24 * 10**6)
     

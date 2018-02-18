@@ -138,7 +138,7 @@ DATADIR = 'RaiBlocks'
 DBPREFIX = 'data.ldb'
 
 SUBDBS = ['accounts', 'blocks_info', 'change', 'checksum', 'frontiers', 'meta', 'open', 'pending', 'receive', 'representation', 'send', 'unchecked', 'unsynced', 'vote']
-SUBDBS = ['send']
+SUBDBS = ['blocks_info']
 
 
 env = lmdb.Environment(
@@ -222,7 +222,7 @@ for subdbname in SUBDBS:
                 print('... head block %s' % bin2hex(head_block))
                 print('... representative %s (%s)' % (bin2hex(representative), encode_account(representative)))
                 print('... open block %s' % bin2hex(open_block))
-                print('... balance %s (%.6f Mxrb)' % (bin2hex(balance), bin2balance(balance)))
+                print('... balance %s (%.6f Mxrb)' % (bin2hex(balance), bin2balance_mxrb(balance)))
                 print('... modified %d (%s LOCAL)' % (modified, time.asctime(time.localtime(modified))))
                 print('... block_count %d' % block_count)
                 
@@ -236,7 +236,7 @@ for subdbname in SUBDBS:
                 
                 print('Block info %s' % bin2hex(key))
                 print('... account %s (%s)' % (bin2hex(account), encode_account(account)))
-                print('... balance %s (%.6f Mxrb)' % (bin2hex(balance), bin2balance(balance)))
+                print('... balance %s (%.6f Mxrb)' % (bin2hex(balance), bin2balance_mxrb(balance)))
                 
             elif subdbname == 'frontiers':       
                 # Key is last block in the account chain
@@ -298,7 +298,7 @@ for subdbname in SUBDBS:
                 print('.k. destination %s (%s)' % (bin2hex(destination), encode_account(destination)))
                 print('.k. block %s' % bin2hex(block))
                 print('... sender %s (%s)' % (bin2hex(sender), encode_account(sender)))
-                print('... amount %s (%.6f Mxrb)' % (bin2hex(amount), bin2balance(amount)))
+                print('... amount %s (%.6f Mxrb)' % (bin2hex(amount), bin2balance_mxrb(amount)))
                 #print('... destination %s (%s)' % (bin2hex(destination), encode_account(destination)))
                 
             elif subdbname == 'receive':
@@ -324,7 +324,7 @@ for subdbname in SUBDBS:
                 assert len(value[16:]) == 0
                 
                 print('Representation %s (%s)' % (bin2hex(key), encode_account(key)))
-                print('... weight %.6f' % bin2balance(weight))
+                print('... weight %.6f' % bin2balance_mxrb(weight))
                 
             elif subdbname == 'send':
                 # blocks.cpp, deserialize_block(stream, type), rai::send_block members
@@ -340,7 +340,7 @@ for subdbname in SUBDBS:
                 print('Send block %s' % bin2hex(key))
                 print('... previous block %s' % bin2hex(previous_block))
                 print('... destination %s (%s)' % (destination, encode_account(destination)))
-                print('... balance %s (%.6f Mxrb)' % (bin2hex(balance), bin2balance(balance)))
+                print('... balance %s (%.6f Mxrb)' % (bin2hex(balance), bin2balance_mxrb(balance)))
                 print('... signature %s' % bin2hex(signature))
                 print('... work %08x' % work)
                 print('... successor %s' % bin2hex(successor))
