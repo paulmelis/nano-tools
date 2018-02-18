@@ -160,12 +160,13 @@ def process_open_entry(cur, key, value):
     representative_id = get_account_id(encode_account(representative))
     account_id = get_account_id(encode_account(account))
     signature = bin2hex(signature)
+    work = '%08x' % work
     successor_id = get_block_id(successor)
     
     # XXX work value
     
     sqlcur.execute('insert into blocks (id, hash, type, source, representative, account, signature, work, next) values (?,?,?,?,?,?,?,?,?)',
-        (block_id, hash, 'open', source_id, representative_id, account_id, signature, '%08x' % work, successor_id))
+        (block_id, hash, 'open', source_id, representative_id, account_id, signature, work, successor_id))
   
 def process_change_entry(cur, key, value):  
     
@@ -193,10 +194,11 @@ def process_change_entry(cur, key, value):
     previous_id = get_block_id(previous_block)
     representative_id = get_account_id(encode_account(representative))
     signature = bin2hex(signature)
+    work = '%08x' % work
     successor_id = get_block_id(successor)
     
     sqlcur.execute('insert into blocks (id, hash, type, previous, representative, signature, work, next) values (?,?,?,?,?,?,?,?)',
-        (block_id, hash, 'change', previous_id, representative, signature, '%08x' % work, successor_id))
+        (block_id, hash, 'change', previous_id, representative, signature, work, successor_id))
 
 def process_receive_entry(cur, key, value):
     
@@ -224,10 +226,11 @@ def process_receive_entry(cur, key, value):
     previous_id = get_block_id(previous_block)
     source_id = get_block_id(source_block)
     signature = bin2hex(signature)
+    work = '%08x' % work
     successor_id = get_block_id(successor)
     
     sqlcur.execute('insert into blocks (id, hash, type, previous, source, signature, work, next) values (?,?,?,?,?,?,?,?)',
-        (block_id, hash, 'receive', previous_id, source_id, signature, '%08x' % work, successor_id))
+        (block_id, hash, 'receive', previous_id, source_id, signature, work, successor_id))
 
 def process_send_entry(cur, key, value):
 
@@ -260,11 +263,12 @@ def process_send_entry(cur, key, value):
     previous_id = get_block_id(previous_block)
     destination_id = get_account_id(encode_account(destination))
     signature = bin2hex(signature)
+    work = '%08x' % work
     successor_id = get_block_id(successor)
         
     # Note that we store balance_raw (a Python long) as a string
     sqlcur.execute('insert into blocks (id, hash, type, previous, destination, balance, balance_raw, signature, work, next) values (?,?,?,?,?,?,?,?,?,?)',
-        (block_id, hash, 'send', previous_id, destination_id, balance_mxrb, str(balance_raw), signature, '%08x' % work, successor_id))
+        (block_id, hash, 'send', previous_id, destination_id, balance_mxrb, str(balance_raw), signature, work, successor_id))
 
 
 processor_functions = {
