@@ -74,7 +74,6 @@ dbfile = sys.argv[1]
 
 sqldb = apsw.Connection(dbfile)
 sqlcur = sqldb.cursor()
-sqlcur.execute(SCHEMA)
 
 # Map block hash (bytes) to integer ID (starting at 1)
 block_ids = {}
@@ -198,7 +197,7 @@ def process_change_entry(cur, key, value):
     successor_id = get_block_id(successor)
     
     sqlcur.execute('insert into blocks (id, hash, type, previous, representative, signature, work, next) values (?,?,?,?,?,?,?,?)',
-        (block_id, hash, 'change', previous_id, representative, signature, work, successor_id))
+        (block_id, hash, 'change', previous_id, representative_id, signature, work, successor_id))
 
 def process_receive_entry(cur, key, value):
     
@@ -279,11 +278,6 @@ processor_functions = {
     #'vote': process_vote_entry,
 }
 
-env = lmdb.Environment(
-        RAIBLOCKS_LMDB_DB, subdir=False,
-        map_size=10*1024*1024*1024, max_dbs=16,
-        readonly=True)
-      
 """                    
 # Prepare by reading per-block info, which we need later
 
@@ -321,55 +315,123 @@ with env.begin(write=False) as tx:
     bar.finish()
 """
 
-# Process blocks per type
-
-for subdbname in ['change', 'open', 'receive', 'send']:
+def fill_db():
     
-    subdb = env.open_db(subdbname.encode())
+    # Open the RaiBlocks database
+    env = lmdb.Environment(
+        RAIBLOCKS_LMDB_DB, subdir=False,
+        map_size=10*1024*1024*1024, max_dbs=16,
+        readonly=True)
+      
+    # Initialize sqlite DB
+    sqlcur.execute(SCHEMA)
+
+    # Process blocks per type
+
+    for subdbname in ['change', 'open', 'receive', 'send']:
+        
+        subdb = env.open_db(subdbname.encode())
+        
+        with env.begin(write=False) as tx:
+            cur = tx.cursor(subdb)
+            cur.first()
+            
+            print('Processing "%s" blocks' % subdbname)
+            bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
+            i = 0        
+            
+            p = processor_functions[subdbname]
+            
+            sqlcur.execute('begin')
+
+            for key, value in cur:
+                
+                p(sqlcur, key, value)
+                
+                i += 1
+                bar.update(i)            
+                
+            sqlcur.execute('commit')   
+
+            bar.finish()        
+            
+    # Store accounts
+            
+    print('Storing account info')
+    bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
+    i = 0        
+            
+    sqlcur.execute('begin')
+
+    for address, id in account_ids.items():
+        
+        sqlcur.execute('insert into accounts (id, address) values (?,?)',
+            (id, address))
+            
+        i += 1
+        bar.update(i)            
+               
+    sqlcur.execute('commit')
+
+    bar.finish()
+
+#
+# Store for each block to which account chain (account id) it belongs
+#
+
+# Get open blocks (as they have an account assigned)
+
+block_to_account = {}
+
+sqlcur.execute('select id, account from blocks where type=?', ('open',))
+
+for id, account in sqlcur:
+    block_to_account[id] = account
     
-    with env.begin(write=False) as tx:
-        cur = tx.cursor(subdb)
-        cur.first()
-        
-        print('Processing "%s" blocks' % subdbname)
-        bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
-        i = 0        
-        
-        p = processor_functions[subdbname]
-        
-        sqlcur.execute('begin')
+# Gather all other blocks
 
-        for key, value in cur:
+block_to_previous = {}
             
-            p(sqlcur, key, value)
-            
-            i += 1
-            bar.update(i)            
-            
-        sqlcur.execute('commit')   
+sqlcur.execute('select id, previous from blocks where type<>?', ('open',))
 
-        bar.finish()        
-        
-# Store accounts
-        
-print('Storing account info')
-bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
-i = 0        
-        
-sqlcur.execute('begin')
-
-for address, id in account_ids.items():
+for id, previous in sqlcur:
+    if previous is None:
+        print('No previous for block %d' % id)
+        continue
+    block_to_previous[id] = previous
     
-    sqlcur.execute('insert into accounts (id, address) values (?,?)',
-        (id, address))
+# Process the blocks that don't have an account assigned yet
+    
+#bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
+#bar.update(len(block_to_previous))
+
+while len(block_to_previous) > 0:
+    
+    print('%d blocks assigned, %d blocks left' % (len(block_to_account), len(block_to_previous)))
+    blocks_assigned = set()
+    
+    account_open_used = {}
         
-    i += 1
-    bar.update(i)            
-           
-sqlcur.execute('commit')
-
-bar.finish()
-
-# Store for each block to which account chain it belongs, can reuse account ids for this.
-# This gives a direct mapping from block to chain/account
+    for block_id, block_previous in block_to_previous.items():
+        
+        if block_previous not in block_to_account:
+            continue                    
             
+        account = block_to_account[block_previous]
+        block_to_account[block_id] = account
+        blocks_assigned.add(block_id)
+        
+        
+    if len(blocks_assigned) == 0:
+        print('All possible blocks assigned (%d left)!' % len(block_to_previous))
+        break
+
+    print('%d assigned' % len(blocks_assigned))
+    
+    for block_id in blocks_assigned:
+        del block_to_previous[block_id]
+
+    #bar.update(len(block_to_previous))
+    
+#bar.finish()
+

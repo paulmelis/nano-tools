@@ -49,11 +49,14 @@ class NanoDatabase:
         
         pass
         
-        # Check for missing blocks
+        # Check for missing blocks, e.g. previous id points to non-existent block
         
         # Check for accounts not having an open block
+        # Check that no forks exist, i.e. two or more blocks with a common previous block
         
         # Number of send blocks >= number of receive blocks + number of open blocks
+        
+        # Check successor value against previous of successor block
         
         
     def stats(self):
