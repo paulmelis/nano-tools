@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-import sys, os, time
+import sys, collections, os, time
 from struct import unpack
 import lmdb, apsw, numpy
 import progressbar
+
 from rainumbers import *
+from nanodb import KNOWN_ACCOUNTS
 
 DATADIR = 'RaiBlocks'
 DBPREFIX = 'data.ldb'
+
 RAIBLOCKS_LMDB_DB = os.path.join(os.environ['HOME'], DATADIR, DBPREFIX)
 
 # XXX Store for each block to which account chain it belongs, can reuse account ids for this.
@@ -21,6 +24,8 @@ drop table if exists blocks;
 create table accounts (
     id          integer not null,
     address     text not null,      -- xrb_....   
+    
+    name        text,
 
     -- could store derived quantities, like
     -- number of blocks
@@ -59,14 +64,24 @@ commit;
 """
 
 CREATE_INDICES = """
+drop index if exists accounts_address;
+
+drop index if exists blocks_source;
+drop index if exists blocks_destination;
+drop index if exists blocks_account;
+drop index if exists blocks_balance;
+drop index if exists blocks_previous;
+drop index if exists blocks_next;
+drop index if exists blocks_type;
+
 create index accounts_address on accounts (address);
 
 create index blocks_source on blocks (source);
 create index blocks_destination on blocks (source);
 create index blocks_account on blocks (account);
 create index blocks_balance on blocks (balance);
-create index blocks_next on blocks (next);
 create index blocks_previous on blocks (previous);
+create index blocks_next on blocks (next);
 create index blocks_type on blocks (type);
 """
 
@@ -74,6 +89,7 @@ dbfile = sys.argv[1]
 
 sqldb = apsw.Connection(dbfile)
 sqlcur = sqldb.cursor()
+sqlcur.execute('PRAGMA journal_mode=WAL;')
 
 # Map block hash (bytes) to integer ID (starting at 1)
 block_ids = {}
@@ -365,9 +381,13 @@ def fill_db():
 
     for address, id in account_ids.items():
         
-        sqlcur.execute('insert into accounts (id, address) values (?,?)',
-            (id, address))
-            
+        name = None
+        if address in KNOWN_ACCOUNTS:
+            name = KNOWN_ACCOUNTS[address]
+
+        sqlcur.execute('insert into accounts (id, address, name) values (?,?,?)',
+            (id, address, name))
+        
         i += 1
         bar.update(i)            
                
@@ -375,63 +395,100 @@ def fill_db():
 
     bar.finish()
 
+
+def create_indices():
+    
+    sqlcur.execute(CREATE_INDICES)
+    
+#fill_db()
+#doh
+
+    
 #
 # Store for each block to which account chain (account id) it belongs
 #
 
+# Key: block id
+# Value: id of previous block 
+block_to_previous = {}
+
 # Get open blocks (as they have an account assigned)
 
-block_to_account = {}
+open_block_to_account = {}
 
 sqlcur.execute('select id, account from blocks where type=?', ('open',))
 
 for id, account in sqlcur:
-    block_to_account[id] = account
+    open_block_to_account[id] = account
+    block_to_previous[id] = None
     
 # Gather all other blocks
 
-block_to_previous = {}
-            
+blocks_to_process = set()
+
 sqlcur.execute('select id, previous from blocks where type<>?', ('open',))
 
 for id, previous in sqlcur:
     if previous is None:
-        print('No previous for block %d' % id)
+        print('No previous value for block %d!' % id)
         continue
+    
     block_to_previous[id] = previous
-    
-# Process the blocks that don't have an account assigned yet
-    
-#bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
-#bar.update(len(block_to_previous))
-
-while len(block_to_previous) > 0:
-    
-    print('%d blocks assigned, %d blocks left' % (len(block_to_account), len(block_to_previous)))
-    blocks_assigned = set()
-    
-    account_open_used = {}
-        
-    for block_id, block_previous in block_to_previous.items():
-        
-        if block_previous not in block_to_account:
-            continue                    
+    blocks_to_process.add(id)
             
-        account = block_to_account[block_previous]
-        block_to_account[block_id] = account
-        blocks_assigned.add(block_id)
-        
-        
-    if len(blocks_assigned) == 0:
-        print('All possible blocks assigned (%d left)!' % len(block_to_previous))
-        break
+# Reconstruct all the account chains, using the previous pointers in
+# the blocks
 
-    print('%d assigned' % len(blocks_assigned))
+# Account chains under construction
+# Key: id of *last* block in the chain
+# Value: list of sequential blocks [open, ... , D, E, ...]; with E.previous = D
+account_chains = {}
+
+# Bootstrap with the open blocks
+for id in open_block_to_account.keys():
+    account_chains[id] = [id]
     
-    for block_id in blocks_assigned:
-        del block_to_previous[block_id]
+print('Reconstructing account chains')
+bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
+bar.update(len(blocks_to_process))
 
-    #bar.update(len(block_to_previous))
+while len(blocks_to_process) > 0:
     
-#bar.finish()
+    # Get next block to process
+    tail_block = blocks_to_process.pop()
+    
+    #print('processing block %d' % tail_block)
+    
+    # Follow the previous pointers until we hit an existing chain
+    chain = collections.deque([tail_block])
+    blocks_processed = set()
+    
+    cur_block = block_to_previous[tail_block]
+    
+    while cur_block not in account_chains:
+        
+        assert cur_block is not None
+        assert cur_block not in blocks_processed
+        
+        chain.appendleft(cur_block)
+        blocks_processed.add(cur_block)
+        
+        cur_block = block_to_previous[cur_block]
+        
+    assert cur_block in account_chains
+    
+    #print('processed block %d: merging chain of %d with %d' % (tail_block, len(account_chains[cur_block]), len(chain)))
+        
+    # Merge the new chain with the existing one
+    new_chain = account_chains[cur_block] + list(chain)
+    del account_chains[cur_block]
+    account_chains[new_chain[-1]] = new_chain
+    
+    blocks_to_process -= blocks_processed
+    
+    bar.update(len(blocks_to_process))
+    
+bar.finish()
 
+print('Have %d accounts chains' % len(account_chains))
+assert len(account_chains) == len(open_block_to_account)
