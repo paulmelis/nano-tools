@@ -5,7 +5,9 @@ Edge notation and meaning:
 
     A -> B 
 
-If A must be completed *before* B, i.e. B depends on A
+A must be completed *before* B, i.e. B depends on A. This conventation
+stays close the idea of a chain of blocks (A -> B -> C -> ...) and its
+meaning w.r.t dependency.
     
     
 Open block on account B

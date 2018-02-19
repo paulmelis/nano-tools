@@ -39,8 +39,18 @@ def blockid2hash(id):
     
 class NanoDatabase:
     
-    def __init__(self, dbfile):
+    def __init__(self, dbfile, trace=False):
         self.db = apsw.Connection(dbfile, flags=apsw.SQLITE_OPEN_READONLY)
+        
+        if trace:
+            self.db.setexectrace(self._exectrace)
+
+    def _exectrace(self, cursor, sql, bindings):
+        print('%s [%s]' % (sql, repr(bindings)))
+        return True
+        
+    def close(self):
+        self.db.close()
         
     def account_from_id(self, id):
         assert isinstance(id, int)
@@ -88,6 +98,8 @@ class NanoDatabase:
         
         # Check successor value against previous of successor block
         
+        # check block hash length (which are not the same, have leading zeroes?)
+        
         
     def stats(self):
         pass
@@ -118,20 +130,27 @@ class Account:
         if self.open_block is not None:
             return self.open_block
         cur = self.db.cursor()
-        cur.execute('select id from blocks where account=?', (self.id,))        # XXX ???
-        self.open_block = Block(self.db, next(cur)[0])
+        cur.execute('select id from blocks where account=? and type=?', (self.id,'open'))
+        try:
+            row = next(cur)
+        except StopIteration:
+            return None
+        self.open_block = Block(self.db, row[0])
         return self.open_block
         
-    def chain(self, type=None):
+    def chain(self, type=None, limit=None):
         """
         Return all blocks in the chain, in sequence, open block first.
         If "type" is set only blocks of the requested type will be returned.
+        If "limit" is set at most limit blocks will be returned.
         """
         res = []
         b = self.first_block()
         while b is not None:
             if type is None or b.type == type:
                 res.append(b)
+                if limit is not None and len(res) == limit:
+                    break
             b = b.next()                    
         return res
         
@@ -210,14 +229,23 @@ class Block:
         raise ValueError('Block type should be send or receive')
         
     def balance(self):
-        if self.type != 'send':
-            raise TypeError('Only send blocks have a balance value')
         if self.balance_ is not None:
             return self.self.balance_
-        cur = self.db.cursor()
-        cur.execute('select balance from blocks where id=?', (self.id,))
-        self.balance_ = next(cur)[0]
+            
+        if self.type in ['receive', 'open']:
+            #raise TypeError('Only send blocks have a balance value')
+            self.balance_ = self.other().balance()
+        elif self.type != 'send':
+            return None
+        else:
+            assert self.type == 'send'
+            cur = self.db.cursor()
+            cur.execute('select balance from blocks where id=?', (self.id,))
+            self.balance_ = next(cur)[0]
+            
         return self.balance_
+        
+    # XXX add balance_raw()
         
     # def amount(self): 
     # for send/receive/open blocks compute the amount being transfered

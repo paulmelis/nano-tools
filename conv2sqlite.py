@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import sys, collections, os, time
 from struct import unpack
-import lmdb, apsw, numpy
+import click
+import lmdb, apsw
 import progressbar
 
 from rainumbers import *
@@ -9,16 +10,19 @@ from nanodb import KNOWN_ACCOUNTS
 
 DATADIR = 'RaiBlocks'
 DBPREFIX = 'data.ldb'
-
 RAIBLOCKS_LMDB_DB = os.path.join(os.environ['HOME'], DATADIR, DBPREFIX)
+
+DEFAULT_SQLITE_DB = 'nano.db'
 
 SCHEMA = """
 begin;
 
 drop table if exists accounts;
 drop table if exists blocks;
+drop table if exists block_info;
 
-create table accounts (
+create table accounts 
+(
     id          integer not null,
     address     text not null,      -- xrb_....   
     
@@ -32,7 +36,8 @@ create table accounts (
     unique(address)
 );
 
-create table blocks (
+create table blocks 
+(
     id          integer not null,
     hash        text not null,
     type        text not null,
@@ -57,10 +62,19 @@ create table blocks (
     unique(hash)
 );
 
+create table block_info
+(
+    block       integer not null,
+    account     integer not null,
+    sequence    integer not null,   -- Index in chain, 0 = open block
+    
+    primary key(block)
+);
+
 commit;
 """
 
-CREATE_INDICES = """
+DROP_INDICES = """
 drop index if exists accounts_address;
 
 drop index if exists blocks_source;
@@ -71,6 +85,11 @@ drop index if exists blocks_previous;
 drop index if exists blocks_next;
 drop index if exists blocks_type;
 
+drop index if exists block_info_account;
+drop index if exists block_info_sequence;
+"""
+
+CREATE_INDICES = """
 create index accounts_address on accounts (address);
 
 create index blocks_source on blocks (source);
@@ -80,13 +99,10 @@ create index blocks_balance on blocks (balance);
 create index blocks_previous on blocks (previous);
 create index blocks_next on blocks (next);
 create index blocks_type on blocks (type);
+
+create index block_info_account on block_info (account);
+create index block_info_sequence on block_info (sequence);
 """
-
-dbfile = sys.argv[1]
-
-sqldb = apsw.Connection(dbfile)
-sqlcur = sqldb.cursor()
-sqlcur.execute('PRAGMA journal_mode=WAL;')
 
 # Map block hash (bytes) to integer ID (starting at 1)
 block_ids = {}
@@ -123,7 +139,7 @@ def get_account_id(address):
 
 
 """
-def process_vote_entry(cur, key, value):
+def process_vote_entry(sqlcur, key, value):
     
     # secure.cpp, vote::serialize()
     
@@ -143,7 +159,7 @@ def process_vote_entry(cur, key, value):
         (bin2hex(key), 'vote', encode_account(account), bin2hex(signature), sequence_number, bin2hex(value[104:])))
 """
 
-def process_open_entry(cur, key, value):
+def process_open_entry(sqlcur, key, value):
     
     # blocks.cpp, deserialize_block(stream, type), rai::open_block members
 
@@ -180,7 +196,7 @@ def process_open_entry(cur, key, value):
     sqlcur.execute('insert into blocks (id, hash, type, source, representative, account, signature, work, next) values (?,?,?,?,?,?,?,?,?)',
         (block_id, hash, 'open', source_id, representative_id, account_id, signature, work, successor_id))
   
-def process_change_entry(cur, key, value):  
+def process_change_entry(sqlcur, key, value):  
     
     # blocks.cpp, deserialize_block(stream, type), rai::change_block members
     
@@ -212,7 +228,7 @@ def process_change_entry(cur, key, value):
     sqlcur.execute('insert into blocks (id, hash, type, previous, representative, signature, work, next) values (?,?,?,?,?,?,?,?)',
         (block_id, hash, 'change', previous_id, representative_id, signature, work, successor_id))
 
-def process_receive_entry(cur, key, value):
+def process_receive_entry(sqlcur, key, value):
     
     # blocks.cpp, deserialize_block(stream, type), rai::receive_block members
     
@@ -244,7 +260,7 @@ def process_receive_entry(cur, key, value):
     sqlcur.execute('insert into blocks (id, hash, type, previous, source, signature, work, next) values (?,?,?,?,?,?,?,?)',
         (block_id, hash, 'receive', previous_id, source_id, signature, work, successor_id))
 
-def process_send_entry(cur, key, value):
+def process_send_entry(sqlcur, key, value):
 
     # blocks.cpp, deserialize_block(stream, type), rai::send_block members
     
@@ -282,25 +298,34 @@ def process_send_entry(cur, key, value):
     sqlcur.execute('insert into blocks (id, hash, type, previous, destination, balance, balance_raw, signature, work, next) values (?,?,?,?,?,?,?,?,?,?)',
         (block_id, hash, 'send', previous_id, destination_id, balance_mxrb, str(balance_raw), signature, work, successor_id))
 
-
-processor_functions = {
-    'change'    : process_change_entry,
-    'open'      : process_open_entry,
-    'receive'   : process_receive_entry,
-    'send'      : process_send_entry,
-    #'vote': process_vote_entry,
-}
-
-def fill_db():
+# XXX should make db = sqlite explicit
+@click.command()
+@click.option('-d', '--dbfile', default=DEFAULT_SQLITE_DB, help='SQLite database file', show_default=True)
+def create(dbfile):
+    
+    """Create SQLite database from the RaiBlocks LMDB database"""
+    
+    processor_functions = {
+        'change'    : process_change_entry,
+        'open'      : process_open_entry,
+        'receive'   : process_receive_entry,
+        'send'      : process_send_entry,
+        #'vote': process_vote_entry,
+    }
     
     # Open the RaiBlocks database
     env = lmdb.Environment(
         RAIBLOCKS_LMDB_DB, subdir=False,
         map_size=10*1024*1024*1024, max_dbs=16,
         readonly=True)
-      
+        
     # Initialize sqlite DB
+    
+    sqldb = apsw.Connection(dbfile)
+    sqlcur = sqldb.cursor()
+    sqlcur.execute('PRAGMA journal_mode=WAL;')
     sqlcur.execute(SCHEMA)
+    sqlcur.execute(DROP_INDICES)
 
     # Process blocks per type
 
@@ -355,134 +380,145 @@ def fill_db():
 
     bar.finish()
 
-
-def create_indices():
+@click.command()
+@click.option('-d', '--dbfile', default=DEFAULT_SQLITE_DB, help='SQLite database file', show_default=True)
+def drop_indices(dbfile):
+    sqldb = apsw.Connection(dbfile)
+    sqlcur = sqldb.cursor()
+    sqlcur.execute(DROP_INDICES)
     
+@click.command()
+@click.option('-d', '--dbfile', default=DEFAULT_SQLITE_DB, help='SQLite database file', show_default=True)
+def create_indices(dbfile):
+    sqldb = apsw.Connection(dbfile)
+    sqlcur = sqldb.cursor()
+    sqlcur.execute(DROP_INDICES)
     sqlcur.execute(CREATE_INDICES)
     
-#fill_db()
-#doh
-
+@click.command()
+@click.option('-d', '--dbfile', default=DEFAULT_SQLITE_DB, help='SQLite database file', show_default=True)
+def derive_block_info(dbfile):
+    """Store for each block to which account chain (account id) it belongs"""
     
-#
-# Store for each block to which account chain (account id) it belongs
-#
+    sqldb = apsw.Connection(dbfile)
+    sqlcur = sqldb.cursor()
 
-# Key: block id
-# Value: id of previous block 
-block_to_previous = {}
+    # Previous point for a block, or None (for open blocks)
+    # Key: block id
+    # Value: id of previous block 
+    block_to_previous = {}
 
-# Get open blocks (as they have an account assigned)
+    # Get open blocks (as they have an account assigned)
 
-open_block_to_account = {}
+    open_block_to_account = {}
 
-sqlcur.execute('select id, account from blocks where type=?', ('open',))
+    sqlcur.execute('select id, account from blocks where type=?', ('open',))
 
-for id, account in sqlcur:
-    open_block_to_account[id] = account
-    block_to_previous[id] = None
-    
-# Gather all other blocks
-
-blocks_to_process = set()
-
-sqlcur.execute('select id, previous from blocks where type<>?', ('open',))
-
-for id, previous in sqlcur:
-    if previous is None:
-        print('No previous value for block %d!' % id)
-        continue
-    
-    block_to_previous[id] = previous
-    blocks_to_process.add(id)
-            
-# Reconstruct all the account chains, using the previous pointers in
-# the blocks
-
-# Account chains under construction
-# Key: id of *last* block in the chain
-# Value: list of sequential blocks [open, ... , D, E, ...]; with E.previous = D
-account_chains = {}
-
-# Bootstrap with the open blocks
-for id in open_block_to_account.keys():
-    account_chains[id] = [id]
-    
-print('Reconstructing account chains')
-bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
-bar.update(len(blocks_to_process))
-
-while len(blocks_to_process) > 0:
-    
-    # Get next block to process
-    tail_block = blocks_to_process.pop()
-    
-    #print('processing block %d' % tail_block)
-    
-    # Follow the previous pointers until we hit an existing chain
-    chain = collections.deque([tail_block])
-    blocks_processed = set()
-    
-    cur_block = block_to_previous[tail_block]
-    
-    while cur_block not in account_chains:
+    for id, account in sqlcur:
+        open_block_to_account[id] = account
+        block_to_previous[id] = None
         
-        assert cur_block is not None
-        assert cur_block not in blocks_processed
+    # Gather all other blocks
+
+    blocks_to_process = set()
+
+    sqlcur.execute('select id, previous from blocks where type<>?', ('open',))
+
+    for id, previous in sqlcur:
+        if previous is None:
+            print('No previous value for block %d!' % id)
+            continue
         
-        chain.appendleft(cur_block)
-        blocks_processed.add(cur_block)
+        block_to_previous[id] = previous
+        blocks_to_process.add(id)
+                
+    # Reconstruct all the account chains, using the previous pointers 
+    # in the blocks
+
+    # Account chains under construction
+    # Key: id of *last* block in the chain
+    # Value: list of sequential blocks [open, ... , D, E, ...]; with E.previous = D
+    account_chains = {}
+
+    # Bootstrap with the open blocks
+    for id in open_block_to_account.keys():
+        account_chains[id] = [id]
         
-        cur_block = block_to_previous[cur_block]
-        
-    assert cur_block in account_chains
-    
-    #print('processed block %d: merging chain of %d with %d' % (tail_block, len(account_chains[cur_block]), len(chain)))
-        
-    # Merge the new chain with the existing one
-    new_chain = account_chains[cur_block] + list(chain)
-    del account_chains[cur_block]
-    account_chains[new_chain[-1]] = new_chain
-    
-    blocks_to_process -= blocks_processed
-    
+    print('Reconstructing account chains')
+    bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
     bar.update(len(blocks_to_process))
-    
-bar.finish()
 
-print('Have %d accounts chains' % len(account_chains))
-assert len(account_chains) == len(open_block_to_account)
-
-sqlcur.execute("""
-drop table if exists block_info;
-
-create table block_info
-(
-    block       integer not null,
-    account     integer not null,
-    sequence    integer not null,   -- Index in chain, 0 = open block
-    
-    primary key(block)
-);
-""")
-
-print('Storing block info')
-
-bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
-bar.update(len(blocks_to_process))
-i = 0
-
-sqlcur.execute('begin')
-
-for last_block, chain in account_chains.items():
-    
-    account = open_block_to_account[chain[0]]
-    for idx, block in enumerate(chain):
-        sqlcur.execute('insert into block_info (block, account, sequence) values (?,?,?)', (block, account, idx))
+    while len(blocks_to_process) > 0:
         
-    i += 1
-    bar.update(i)
-    
-sqlcur.execute('commit')
+        # Get next block to process
+        tail_block = blocks_to_process.pop()
+        
+        #print('processing block %d' % tail_block)
+        
+        # Follow the previous pointers until we hit an existing chain
+        chain = collections.deque([tail_block])
+        blocks_processed = set()
+        
+        cur_block = block_to_previous[tail_block]
+        
+        while cur_block not in account_chains:
+            
+            assert cur_block is not None
+            assert cur_block not in blocks_processed
+            
+            chain.appendleft(cur_block)
+            blocks_processed.add(cur_block)
+            
+            cur_block = block_to_previous[cur_block]
+            
+        assert cur_block in account_chains
+        
+        #print('processed block %d: merging chain of %d with %d' % (tail_block, len(account_chains[cur_block]), len(chain)))
+            
+        # Merge the new chain with the existing one
+        new_chain = account_chains[cur_block] + list(chain)
+        del account_chains[cur_block]
+        account_chains[new_chain[-1]] = new_chain
+        
+        blocks_to_process -= blocks_processed
+        
+        bar.update(len(blocks_to_process))
+        
+    bar.finish()
 
-bar.finish()
+    print('Have %d accounts chains' % len(account_chains))
+    assert len(account_chains) == len(open_block_to_account)
+
+    print('Storing per-block info')
+
+    bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
+    bar.update(len(blocks_to_process))
+    i = 0
+
+    sqlcur.execute('begin')
+
+    for last_block, chain in account_chains.items():
+        
+        account = open_block_to_account[chain[0]]
+        for idx, block in enumerate(chain):
+            sqlcur.execute('insert into block_info (block, account, sequence) values (?,?,?)', (block, account, idx))
+            
+        i += 1
+        bar.update(i)
+        
+    sqlcur.execute('commit')
+
+    bar.finish()
+
+
+@click.group()
+def cli():
+    pass
+    
+cli.add_command(create)
+cli.add_command(derive_block_info)
+cli.add_command(create_indices)
+cli.add_command(drop_indices)
+
+if __name__ == '__main__':
+    cli()
