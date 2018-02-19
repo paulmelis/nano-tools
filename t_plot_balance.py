@@ -8,6 +8,8 @@ BG_REP2 = 'xrb_31a51k53fdzam7bhrgi4b67py9o7wp33rec1hi7k6z1wsgh8oagqs7bui9p1'
 db = NanoDatabase(sys.argv[1])
 
 account = db.account_from_address(BG_REP2)
+print(account)
+
 # only send blocks have an explicit balance
 blocks = account.chain('send')
 print(len(blocks))

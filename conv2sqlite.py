@@ -2,10 +2,12 @@
 import sys, os, time
 from struct import unpack
 import lmdb, apsw, numpy
+import progressbar
 from rainumbers import *
 
 DATADIR = 'RaiBlocks'
 DBPREFIX = 'data.ldb'
+RAIBLOCKS_LMDB_DB = os.path.join(os.environ['HOME'], DATADIR, DBPREFIX)
 
 # XXX Store for each block to which account chain it belongs, can reuse account ids for this.
 # This gives a direct mapping from block to chain/account
@@ -43,7 +45,8 @@ create table blocks (
     representative  integer,        -- change
     source          integer,        -- open, receive
     destination     integer,        -- send
-    balance         text,           -- send             -- XXX improve method of storing value, use fixed point string repr
+    balance         float,          -- Mxrb, float representation (not fully precise, 8 byte precision instead of needed 16 bytes)
+    balance_raw     text,           -- raw, integer in string representation 
     account         integer,        -- open, vote
     --sequence_number integer,        -- vote
     --block           text,           -- vote
@@ -71,7 +74,6 @@ dbfile = sys.argv[1]
 
 sqldb = apsw.Connection(dbfile)
 sqlcur = sqldb.cursor()
-sqlcur.execute(SCHEMA)
 
 # Map block hash (bytes) to integer ID (starting at 1)
 block_ids = {}
@@ -82,6 +84,7 @@ account_ids = {}
 next_account_id = 1
 
 def get_block_id(blockhash):
+    # XXX this takes a bytes object, while get_account_id takes a string :-/
     
     if bin2hex(blockhash) == '0000000000000000000000000000000000000000000000000000000000000000':
         return None
@@ -95,6 +98,7 @@ def get_block_id(blockhash):
         return next_block_id-1
 
 def get_account_id(address):
+    assert address.startswith('xrb_') and len(address) == 64
     
     global next_account_id
     try:
@@ -148,10 +152,20 @@ def process_open_entry(cur, key, value):
     print('... successor %s' % bin2hex(successor))
     """
     
-    blockid = get_block_id(key)
+    block_id = get_block_id(key)
+    
+    hash = bin2hex(key)
+    source_id = get_block_id(source_block)
+    representative_id = get_account_id(encode_account(representative))
+    account_id = get_account_id(encode_account(account))
+    signature = bin2hex(signature)
+    work = '%08x' % work
+    successor_id = get_block_id(successor)
+    
+    # XXX work value
     
     sqlcur.execute('insert into blocks (id, hash, type, source, representative, account, signature, work, next) values (?,?,?,?,?,?,?,?,?)',
-        (blockid, bin2hex(key), 'open', get_block_id(source_block), get_account_id(encode_account(representative)), get_account_id(encode_account(account)), bin2hex(signature), '%08x' % work, get_block_id(successor)))
+        (block_id, hash, 'open', source_id, representative_id, account_id, signature, work, successor_id))
   
 def process_change_entry(cur, key, value):  
     
@@ -173,10 +187,17 @@ def process_change_entry(cur, key, value):
     print('... successor %s' % bin2hex(successor))        
     """
     
-    blockid = get_block_id(key)
+    block_id = get_block_id(key)
+    
+    hash = bin2hex(key)
+    previous_id = get_block_id(previous_block)
+    representative_id = get_account_id(encode_account(representative))
+    signature = bin2hex(signature)
+    work = '%08x' % work
+    successor_id = get_block_id(successor)
     
     sqlcur.execute('insert into blocks (id, hash, type, previous, representative, signature, work, next) values (?,?,?,?,?,?,?,?)',
-        (blockid, bin2hex(key), 'change', get_block_id(previous_block), get_account_id(encode_account(representative)), bin2hex(signature), '%08x' % work, get_block_id(successor)))
+        (block_id, hash, 'change', previous_id, representative_id, signature, work, successor_id))
 
 def process_receive_entry(cur, key, value):
     
@@ -198,10 +219,17 @@ def process_receive_entry(cur, key, value):
     print('... successor %s' % bin2hex(successor))
     """
     
-    blockid = get_block_id(key)
+    block_id = get_block_id(key) # XXX _id
+    
+    hash = bin2hex(key)
+    previous_id = get_block_id(previous_block)
+    source_id = get_block_id(source_block)
+    signature = bin2hex(signature)
+    work = '%08x' % work
+    successor_id = get_block_id(successor)
     
     sqlcur.execute('insert into blocks (id, hash, type, previous, source, signature, work, next) values (?,?,?,?,?,?,?,?)',
-        (blockid, bin2hex(key), 'receive', get_block_id(previous_block), get_block_id(source_block), bin2hex(signature), '%08x' % work, get_block_id(successor)))
+        (block_id, hash, 'receive', previous_id, source_id, signature, work, successor_id))
 
 def process_send_entry(cur, key, value):
 
@@ -219,17 +247,27 @@ def process_send_entry(cur, key, value):
     print('Send block %s' % bin2hex(key))
     print('... previous block %s' % bin2hex(previous_block))
     print('... destination %s (%s)' % (destination, encode_account(destination)))
-    print('... balance %s (%.6f Mxrb)' % (bin2hex(balance), bin2balance(balance)))
+    print('... balance %s (%.6f Mxrb)' % (bin2hex(balance), bin2balance_mxrb(balance)))
     print('... signature %s' % bin2hex(signature))
     print('... work %08x' % work)
     print('... successor %s' % bin2hex(successor))
     """
-
-    blockid = get_block_id(key)
     
-    # XXX store balance in what form, Mxrb? or store in string with fixed precision?
-    sqlcur.execute('insert into blocks (id, hash, type, previous, destination, balance, signature, work, next) values (?,?,?,?,?,?,?,?,?)',
-        (blockid, bin2hex(key), 'send', get_block_id(previous_block), get_account_id(encode_account(destination)), bin2balance(balance), bin2hex(signature), '%08x' % work, get_block_id(successor)))
+    block_id = get_block_id(key)
+    
+    balance_mxrb = bin2balance_mxrb(balance)
+    balance_raw = bin2balance_raw(balance)
+    
+    hash = bin2hex(key)    
+    previous_id = get_block_id(previous_block)
+    destination_id = get_account_id(encode_account(destination))
+    signature = bin2hex(signature)
+    work = '%08x' % work
+    successor_id = get_block_id(successor)
+        
+    # Note that we store balance_raw (a Python long) as a string
+    sqlcur.execute('insert into blocks (id, hash, type, previous, destination, balance, balance_raw, signature, work, next) values (?,?,?,?,?,?,?,?,?,?)',
+        (block_id, hash, 'send', previous_id, destination_id, balance_mxrb, str(balance_raw), signature, work, successor_id))
 
 
 processor_functions = {
@@ -240,36 +278,160 @@ processor_functions = {
     #'vote': process_vote_entry,
 }
 
-env = lmdb.Environment(
-        os.path.join(os.environ['HOME'],DATADIR,DBPREFIX), subdir=False,
+"""                    
+# Prepare by reading per-block info, which we need later
+
+# Key is block id
+block_to_account = {}   # Account id
+block_to_balance = {}   # In raw (long value)
+
+subdb = env.open_db(b'blocks_info')
+
+with env.begin(write=False) as tx:
+    cur = tx.cursor(subdb)
+    cur.first()
+    
+    print('Reading block info')
+    bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
+    i = 0
+    
+    for key, value in cur:
+        
+        block_id = get_block_id(key)
+        
+        account = value[:32]
+        balance = value[32:48]
+        assert len(value[48:]) == 0
+        
+        account_id = get_account_id(encode_account(account))            
+        balance_raw = bin2balance_raw(balance)
+        
+        block_to_account[block_id] = account_id
+        block_to_balance[block_id] = balance_raw
+        
+        i += 1
+        bar.update(i)
+        
+    bar.finish()
+"""
+
+def fill_db():
+    
+    # Open the RaiBlocks database
+    env = lmdb.Environment(
+        RAIBLOCKS_LMDB_DB, subdir=False,
         map_size=10*1024*1024*1024, max_dbs=16,
         readonly=True)
+      
+    # Initialize sqlite DB
+    sqlcur.execute(SCHEMA)
 
-for subdbname in ['change', 'open', 'receive', 'send']:
-    
-    subdb = env.open_db(subdbname.encode())
-    
-    with env.begin(write=False) as tx:
-        cur = tx.cursor(subdb)
-        cur.first()
-        
-        p = processor_functions[subdbname]
-        
-        sqlcur.execute('begin')
+    # Process blocks per type
 
-        for key, value in cur:
-            p(sqlcur, key, value)
+    for subdbname in ['change', 'open', 'receive', 'send']:
+        
+        subdb = env.open_db(subdbname.encode())
+        
+        with env.begin(write=False) as tx:
+            cur = tx.cursor(subdb)
+            cur.first()
             
-        sqlcur.execute('commit')    
-        
-sqlcur.execute('begin')
-
-for address, id in account_ids.items():
-    sqlcur.execute('insert into accounts (id, address) values (?,?)',
-        (id, address))
-
-sqlcur.execute('end')
-
-# Store for each block to which account chain it belongs, can reuse account ids for this.
-# This gives a direct mapping from block to chain/account
+            print('Processing "%s" blocks' % subdbname)
+            bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
+            i = 0        
             
+            p = processor_functions[subdbname]
+            
+            sqlcur.execute('begin')
+
+            for key, value in cur:
+                
+                p(sqlcur, key, value)
+                
+                i += 1
+                bar.update(i)            
+                
+            sqlcur.execute('commit')   
+
+            bar.finish()        
+            
+    # Store accounts
+            
+    print('Storing account info')
+    bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
+    i = 0        
+            
+    sqlcur.execute('begin')
+
+    for address, id in account_ids.items():
+        
+        sqlcur.execute('insert into accounts (id, address) values (?,?)',
+            (id, address))
+            
+        i += 1
+        bar.update(i)            
+               
+    sqlcur.execute('commit')
+
+    bar.finish()
+
+#
+# Store for each block to which account chain (account id) it belongs
+#
+
+# Get open blocks (as they have an account assigned)
+
+block_to_account = {}
+
+sqlcur.execute('select id, account from blocks where type=?', ('open',))
+
+for id, account in sqlcur:
+    block_to_account[id] = account
+    
+# Gather all other blocks
+
+block_to_previous = {}
+            
+sqlcur.execute('select id, previous from blocks where type<>?', ('open',))
+
+for id, previous in sqlcur:
+    if previous is None:
+        print('No previous for block %d' % id)
+        continue
+    block_to_previous[id] = previous
+    
+# Process the blocks that don't have an account assigned yet
+    
+#bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
+#bar.update(len(block_to_previous))
+
+while len(block_to_previous) > 0:
+    
+    print('%d blocks assigned, %d blocks left' % (len(block_to_account), len(block_to_previous)))
+    blocks_assigned = set()
+    
+    account_open_used = {}
+        
+    for block_id, block_previous in block_to_previous.items():
+        
+        if block_previous not in block_to_account:
+            continue                    
+            
+        account = block_to_account[block_previous]
+        block_to_account[block_id] = account
+        blocks_assigned.add(block_id)
+        
+        
+    if len(blocks_assigned) == 0:
+        print('All possible blocks assigned (%d left)!' % len(block_to_previous))
+        break
+
+    print('%d assigned' % len(blocks_assigned))
+    
+    for block_id in blocks_assigned:
+        del block_to_previous[block_id]
+
+    #bar.update(len(block_to_previous))
+    
+#bar.finish()
+

@@ -74,6 +74,26 @@ class NanoDatabase:
             res.append(Account(self.db, id, addr))
         return res
         
+    def check(self):
+        """Perform consistency checks, mostly for debugging purposes"""
+        
+        pass
+        
+        # Check for missing blocks, e.g. previous id points to non-existent block
+        
+        # Check for accounts not having an open block
+        # Check that no forks exist, i.e. two or more blocks with a common previous block
+        
+        # Number of send blocks >= number of receive blocks + number of open blocks
+        
+        # Check successor value against previous of successor block
+        
+        
+    def stats(self):
+        pass
+        
+        # number of frontiers, i.e. blocks with null next?
+        
     def cursor(self):
         """For when you know what you're doing..."""
         return self.db.cursor()
@@ -98,22 +118,25 @@ class Account:
         if self.open_block is not None:
             return self.open_block
         cur = self.db.cursor()
-        cur.execute('select id from blocks where account=?', (self.id,))
+        cur.execute('select id from blocks where account=?', (self.id,))        # XXX ???
         self.open_block = Block(self.db, next(cur)[0])
         return self.open_block
         
     def chain(self, type=None):
         """
         Return all blocks in the chain, in sequence, open block first.
-        If type is set only blocks of the requested type will be returned.
+        If "type" is set only blocks of the requested type will be returned.
         """
         res = []
         b = self.first_block()
         while b is not None:
-            if type is not None and b.type == type:
+            if type is None or b.type == type:
                 res.append(b)
-            b = b.next()
+            b = b.next()                    
         return res
+        
+    # def balance()
+    # find last send/receive block
 
 
 class Block:
@@ -142,6 +165,7 @@ class Block:
         return self.hash_
 
     def previous(self):
+        """Return the previous block in the chain. Returns None if there is no previous block"""
         cur = self.db.cursor()
         cur.execute('select previous from blocks where id=?', (self.id,))
         previd = next(cur)[0]
@@ -152,6 +176,7 @@ class Block:
         return Block(self.db, previd, prevtype)
         
     def next(self):
+        """Return the next block in the chain. Returns None if there is no next block"""
         cur = self.db.cursor()
         cur.execute('select next from blocks where id=?', (self.id,))
         nextid = next(cur)[0]
@@ -186,10 +211,21 @@ class Block:
         
     def balance(self):
         if self.type != 'send':
-            raise ValueError('Block must have type send for balance')
+            raise TypeError('Only send blocks have a balance value')
         if self.balance_ is not None:
             return self.self.balance_
         cur = self.db.cursor()
         cur.execute('select balance from blocks where id=?', (self.id,))
         self.balance_ = next(cur)[0]
         return self.balance_
+        
+    # def amount(self): 
+    # for send/receive/open blocks compute the amount being transfered
+
+
+if __name__ == '__main__':
+    
+    db = NanoDatabase(sys.argv[1])
+    db.check()
+    
+    
