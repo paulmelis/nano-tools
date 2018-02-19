@@ -1,0 +1,52 @@
+<html>
+<head>
+    <title>{{block.hash()}}</title>
+    <link rel=stylesheet type=text/css href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+
+<h2>Block {{block.hash()}} <a class="button" href="https://nano.org/en/explore/block/{{block.hash()}}">&nearr;</a></h2>
+
+Block #{{sequence}} of {% if account.name() %}{{account.name()}} ({% else %}account{%endif%}<a href="/account/{{account.id}}">{{account.address}}</a>{% if account.name() %}){%endif%} 
+    <a class="button" href="/block/{{account.first_block().id}}">&larrb;</a>
+    <a class="button" href="https://nano.org/en/explore/account/{{account.address}}">&nearr;</a>
+<p>
+{% if previous %}
+    <a class="button" href="/block/{{previous.id}}">&larr; previous ({{previous.hash()}})</a><br>
+{% endif %}
+<p>
+{% if next %}
+    <a class="button" href="/block/{{next.id}}">&rarr; next({{next.hash()}})</a>
+{% endif %}
+<p>
+<table>
+<tr>
+    <th>Field
+    <th>Value
+</tr>
+<tr>
+    <td>Type
+    <td>{{block.type}}
+</tr>
+{% if block.type in ["open","receive"] %}
+    {% set source = block.other() %}
+    <tr>
+        <td>Source
+        <td><a href="/block/{{source.id}}">{{source.hash()}}</a>
+    </tr>
+{% endif %}
+{% if block.type == "send" %}
+    {% set destination = block.destination() %}
+    <tr>
+        <td>Destination
+        <td><a href="/account/{{destination.id}}">{{destination.address}}</a>
+    </tr>
+    <tr>
+        <td>Balance (after send)
+        <td>{{block.balance()}}
+    </tr>
+{% endif %}
+<table>
+
+</body>
+</html>

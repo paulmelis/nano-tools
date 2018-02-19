@@ -1,0 +1,20 @@
+<html>
+<head>
+</head>
+<body>
+
+<table>
+<tr>
+    <th>Name
+    <th>Address
+</tr>
+{% for id, address, name in accounts %}
+    <tr>
+        <td><a href="/account/{{id}}">{{name}}</a>
+        <td><a href="/account/{{id}}">{{address}}</a>
+    </tr>
+{% endfor %}
+<table>
+
+</body>
+</html>

@@ -1,0 +1,36 @@
+<html>
+<head>
+    <title>{{account.address}}</title>
+    <link rel=stylesheet type=text/css href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+
+<h2>Account {{account.address}} <a class="button" href="https://nano.org/en/explore/account/{{account.address}}">&nearr;</a></h2>
+<h3>{% if name %}{{name}}{% endif %}</h3>
+
+{% if last_blocks | length == 0 %}
+    <i>No transactions</i>
+{% else %}
+<table>
+    <tr>
+        <th>Type
+        <th>Balance
+        <th>Hash
+    </tr>
+    {% for block in last_blocks %}
+        <tr>
+            <td align='left'><a href="/block/{{block.id}}">{{block.type}}</a>
+            <td><a href="/block/{{block.id}}">{{block.balance()}}</a>
+            <td><a href="/block/{{block.id}}">{{block.hash()}}</a>
+        </tr>
+    {% endfor %}
+    <tr>
+        <td>...
+        <td>...
+        <td>...
+    </tr>
+<table>
+{% endif %}
+
+</body>
+</html>
