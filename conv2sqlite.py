@@ -12,9 +12,6 @@ DBPREFIX = 'data.ldb'
 
 RAIBLOCKS_LMDB_DB = os.path.join(os.environ['HOME'], DATADIR, DBPREFIX)
 
-# XXX Store for each block to which account chain it belongs, can reuse account ids for this.
-# This gives a direct mapping from block to chain/account
-
 SCHEMA = """
 begin;
 
@@ -293,43 +290,6 @@ processor_functions = {
     'send'      : process_send_entry,
     #'vote': process_vote_entry,
 }
-
-"""                    
-# Prepare by reading per-block info, which we need later
-
-# Key is block id
-block_to_account = {}   # Account id
-block_to_balance = {}   # In raw (long value)
-
-subdb = env.open_db(b'blocks_info')
-
-with env.begin(write=False) as tx:
-    cur = tx.cursor(subdb)
-    cur.first()
-    
-    print('Reading block info')
-    bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
-    i = 0
-    
-    for key, value in cur:
-        
-        block_id = get_block_id(key)
-        
-        account = value[:32]
-        balance = value[32:48]
-        assert len(value[48:]) == 0
-        
-        account_id = get_account_id(encode_account(account))            
-        balance_raw = bin2balance_raw(balance)
-        
-        block_to_account[block_id] = account_id
-        block_to_balance[block_id] = balance_raw
-        
-        i += 1
-        bar.update(i)
-        
-    bar.finish()
-"""
 
 def fill_db():
     
