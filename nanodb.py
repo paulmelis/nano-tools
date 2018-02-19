@@ -303,6 +303,7 @@ class Block:
             return self.self.balance_
             
         if self.type in ['receive', 'open']:
+            # XXX no no no!
             self.balance_ = self.other().balance()
         elif self.type != 'send':
             return None

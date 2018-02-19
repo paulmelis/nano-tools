@@ -19,6 +19,13 @@ def get_db():
 
 app = Flask(__name__)
 
+@app.template_filter('account_name')
+def account_name(address):
+    if address in KNOWN_ACCOUNTS:
+        return KNOWN_ACCOUNTS[address]
+    else:
+        return ''
+
 @app.teardown_appcontext
 def close_connection(exception):
     db = getattr(g, '_database', None)
@@ -44,20 +51,25 @@ def known_accounts():
         
     return render_template('known_accounts.html', accounts=res)
 
-@app.route('/account/<int:id>')
-def account(id):
+@app.route('/account/<id_or_address>')
+def account(id_or_address):
     
     db = get_db()
     
-    account = db.account_from_id(id)
-    last_blocks = account.chain(limit=25)
+    if id_or_address.startswith('xrb_'):
+        account = db.account_from_address(id_or_address)
+    else:
+        id = int(id_or_address)
+        account = db.account_from_id(id)
+        
+    last_blocks = account.chain(limit=100)
     name = account.name()
     
     return render_template('account.html', 
             account=account,
             last_blocks=last_blocks,
             name=name,
-            id=id)
+            id=account.id)
         
 @app.route('/block/<int:id>')
 def block(id):

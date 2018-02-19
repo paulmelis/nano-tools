@@ -7,7 +7,7 @@
 
 <h2>Block {{block.hash()}} <a class="button" href="https://nano.org/en/explore/block/{{block.hash()}}">&nearr;</a></h2>
 
-Block #{{sequence}} of {% if account.name() %}{{account.name()}} ({% else %}account{%endif%}<a href="/account/{{account.id}}">{{account.address}}</a>{% if account.name() %}){%endif%} 
+Block #{{sequence}} of {% if account.name() %}{{account.name()}} ({% else %}account{%endif%} <a href="/account/{{account.id}}">{{account.address}}</a>{% if account.name() %}){%endif%} 
     <a class="button" href="/block/{{account.first_block().id}}">&larrb;</a>
     <a class="button" href="https://nano.org/en/explore/account/{{account.address}}">&nearr;</a>
 <p>
@@ -37,9 +37,17 @@ Block #{{sequence}} of {% if account.name() %}{{account.name()}} ({% else %}acco
 {% endif %}
 {% if block.type == "send" %}
     {% set destination = block.destination() %}
+    {% set other = block.other() %}
+    {% set destname = destination.address | account_name %}
     <tr>
         <td>Destination
-        <td><a href="/account/{{destination.id}}">{{destination.address}}</a>
+        <td><a href="/account/{{destination.id}}">{% if destname %}{{destname}} ({{destination.address}}){% else %}{{destination.address}}{% endif %}</a> 
+    </tr>
+    <tr>
+        <td>Other
+        {% if other %}
+        <td><a href="/block/{{other.id}}">{{other.id}}</a>
+        {% endif %}
     </tr>
     <tr>
         <td>Balance (after send)
