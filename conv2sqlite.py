@@ -492,3 +492,37 @@ bar.finish()
 
 print('Have %d accounts chains' % len(account_chains))
 assert len(account_chains) == len(open_block_to_account)
+
+sqlcur.execute("""
+drop table if exists block_info;
+
+create table block_info
+(
+    block       integer not null,
+    account     integer not null,
+    sequence    integer not null,   -- Index in chain, 0 = open block
+    
+    primary key(block)
+);
+""")
+
+print('Storing block info')
+
+bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
+bar.update(len(blocks_to_process))
+i = 0
+
+sqlcur.execute('begin')
+
+for last_block, chain in account_chains.items():
+    
+    account = open_block_to_account[chain[0]]
+    for idx, block in enumerate(chain):
+        sqlcur.execute('insert into block_info (block, account, sequence) values (?,?,?)', (block, account, idx))
+        
+    i += 1
+    bar.update(i)
+    
+sqlcur.execute('commit')
+
+bar.finish()
