@@ -20,7 +20,7 @@
     {% for block in last_blocks %}
         <tr>
             <td align='left'><a href="/block/{{block.id}}">{{block.type}}</a>
-            <td><a href="/block/{{block.id}}">{{block.balance()}}</a>
+            <td>{#<a href="/block/{{block.id}}">{{block.balance()}}</a>#}
             <td><a href="/block/{{block.id}}">{{block.hash()}}</a>
         </tr>
     {% endfor %}

@@ -138,7 +138,7 @@ DATADIR = 'RaiBlocks'
 DBPREFIX = 'data.ldb'
 
 SUBDBS = ['accounts', 'blocks_info', 'change', 'checksum', 'frontiers', 'meta', 'open', 'pending', 'receive', 'representation', 'send', 'unchecked', 'unsynced', 'vote']
-SUBDBS = ['blocks_info']
+SUBDBS = ['open']
 
 
 env = lmdb.Environment(

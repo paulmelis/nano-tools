@@ -106,6 +106,10 @@ FAQ
     regardless of what the LMDB docs say about concurrent access. Also, these
     scripts might not handle unexpected changes to the LMDB database well.
 
+* Can I update the database after letting the wallet/node receive new blocks?
+  - This is currently not implemented. The only way to update is to rebuild 
+    the SQLite database.
+
 * Why use APSW instead of the built-in sqlite3 module?
   - [APSW](http://rogerbinns.github.io/apsw/) is an excellent library, aimed
     at working with SQLite from Python, while sqlite3 follows the DB-API

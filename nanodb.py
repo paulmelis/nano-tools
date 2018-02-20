@@ -32,6 +32,12 @@ KNOWN_ACCOUNTS = {
     'xrb_3jwrszth46rk1mu7rmb4rhm54us8yg1gw3ipodftqtikf5yqdyr7471nsg1k': 'Binance Representative'
 }
 
+GENESIS_ACCOUNT         = 'xrb_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3'
+GENESIS_OPEN_BLOCK_HASH = '991CF190094C00F0B68E2E5F75F6BEE95A2E0BD93CEAA4A6734DB9F19B728948'
+GENESIS_PUBLIC_KEY      = 'E89208DD038FBB269987689621D52292AE9C35941A7484756ECCED92A65093BA'
+
+assert KNOWN_ACCOUNTS[GENESIS_ACCOUNT] == 'Genesis'
+
 class NanoDatabase:
 
     def __init__(self, dbfile, trace=False):
@@ -89,7 +95,8 @@ class NanoDatabase:
 
         pass
 
-        # Check for missing blocks, e.g. previous id points to non-existent block
+        # Check for missing blocks, e.g. previous id points to non-existent block. 
+        # For genesis open block: source points to non-existent block        
 
         # Check for accounts not having an open block
         # Check that no forks exist, i.e. two or more blocks with a common previous block

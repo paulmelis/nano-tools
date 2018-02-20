@@ -52,7 +52,8 @@ def known_accounts():
     return render_template('known_accounts.html', accounts=res)
 
 @app.route('/account/<id_or_address>')
-def account(id_or_address):
+@app.route('/account/<id_or_address>/<int:block_limit>')
+def account(id_or_address, block_limit=100):
     
     db = get_db()
     
@@ -62,7 +63,7 @@ def account(id_or_address):
         id = int(id_or_address)
         account = db.account_from_id(id)
         
-    last_blocks = account.chain(limit=100)
+    last_blocks = account.chain(limit=block_limit)
     name = account.name()
     
     return render_template('account.html', 

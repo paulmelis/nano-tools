@@ -6,7 +6,7 @@ import lmdb, apsw
 import progressbar
 
 from rainumbers import *
-from nanodb import KNOWN_ACCOUNTS
+from nanodb import KNOWN_ACCOUNTS, GENESIS_OPEN_BLOCK_HASH, GENESIS_ACCOUNT
 
 DATADIR = 'RaiBlocks'
 DBPREFIX = 'data.ldb'
@@ -44,7 +44,7 @@ create table blocks
 
     -- All blocks
     previous    integer,            -- Can be NULL for an open block
-    next        integer,            -- "successor", called "next" to match "previous"
+    next        integer,            -- "successor" in LMDB; called "next" to match "previous"
     signature   text not null,
 
     -- Depending on block type
@@ -53,7 +53,7 @@ create table blocks
     source          integer,        -- open, receive
     destination     integer,        -- send
     balance         float,          -- Mxrb, float representation (not fully precise, 8 byte precision instead of needed 16 bytes)
-    balance_raw     text,           -- raw, integer in string representation
+    balance_raw     text,           -- raw, integer represented as string
     account         integer,        -- open, vote
     --sequence_number integer,        -- vote
     --block           text,           -- vote
@@ -66,7 +66,10 @@ create table block_info
 (
     block       integer not null,
     account     integer not null,
-    sequence    integer not null,   -- Index in chain, 0 = open block
+    sequence    integer not null,   -- Index in chain (0 = open block)
+    
+    --balance   text,   -- balance at this block, in raw (string representation)
+    --amount    text,   -- amount transfered by this block, in raw (string representation); only for send/receive/open blocks
 
     primary key(block)
 );
@@ -104,18 +107,24 @@ create index block_info_account on block_info (account);
 create index block_info_sequence on block_info (sequence);
 """
 
-# Map block hash (bytes) to integer ID (starting at 1)
-block_ids = {}
-next_block_id = 1
+# Map block hash (bytes) to integer ID
+block_ids = {
+    hex2bin(GENESIS_OPEN_BLOCK_HASH): 0
+}
 
-# Map account address ('xrb_...') to integer ID (starting at 1)
-account_ids = {}
+# Map account address ('xrb_...') to integer ID
+account_ids = {
+    GENESIS_ACCOUNT: 0
+}
+
+next_block_id = 1
 next_account_id = 1
 
 def get_block_id(blockhash):
     # XXX this takes a bytes object, while get_account_id takes a string :-/
 
     if bin2hex(blockhash) == '0000000000000000000000000000000000000000000000000000000000000000':
+        # Used in the LMDB database to indicate a null block "pointer"
         return None
 
     global next_block_id
@@ -164,9 +173,8 @@ def process_open_entry(sqlcur, key, value):
     # blocks.cpp, deserialize_block(stream, type), rai::open_block members
 
     """
-    Special case: open block of genesis account, shown below
-    991CF190094C00F0B68E2E5F75F6BEE95A2E0BD93CEAA4A6734DB9F19B728948
-    The source block does not exist! Where does the genesis balance come from?
+    Special case: open block of the genesis account (991CF190094C00F0B68E2E5F75F6BEE95A2E0BD93CEAA4A6734DB9F19B728948):
+        
     {
     "type": "open",
     "source": "E89208DD038FBB269987689621D52292AE9C35941A7484756ECCED92A65093BA",
@@ -175,7 +183,24 @@ def process_open_entry(sqlcur, key, value):
     "work": "62f05417dd3fb691",
     "signature": "9F0C933C8ADE004D808EA1985FA746A7E95BA2A38F867640F53EC8F180BDFE9E2C1268DEAD7C2664F356E37ABA362BC58E46DBA03E523A7B5A19E4B6EB12BB02"
     }
+    
     See rai/secure.cpp for this block.
+    
+    The source block does not exist! 
+    
+    Receive 340,282,366.920938 XRB    
+    
+    Where does the genesis balance come from?
+    Holy crap, from ledger_constants::genesis_amount() in rai/secure.cpp:
+    
+        genesis_amount (std::numeric_limits<rai::uint128_t>::max ())
+        
+    So, the initial amount available is 2**128-1 = 340282366920938463463374607431768211455 raw
+    
+    But why the non-existent source block? Ah, the source "block" is actually the
+    public key of the Genesis account.
+    
+        char const * live_public_key_data = "E89208DD038FBB269987689621D52292AE9C35941A7484756ECCED92A65093BA"; // xrb_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3
     """
 
     source_block = value[:32]
@@ -542,3 +567,5 @@ cli.add_command(drop_indices)
 
 if __name__ == '__main__':
     cli()
+
+# XXX add some metadata in the db on when it was generated, command, etc.
