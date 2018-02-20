@@ -5,19 +5,35 @@
 </head>
 <body>
 
+
 <h2>Block {{block.hash()}} <a class="button" href="https://nano.org/en/explore/block/{{block.hash()}}">&nearr;</a></h2>
 
-Block #{{sequence}} of {% if account.name() %}{{account.name()}} ({% else %}account{%endif%} <a href="/account/{{account.id}}">{{account.address}}</a>{% if account.name() %}){%endif%} 
-    <a class="button" href="/block/{{account.first_block().id}}">&larrb;</a>
-    <a class="button" href="https://nano.org/en/explore/account/{{account.address}}">&nearr;</a>
-<p>
-{% if previous %}
-    <a class="button" href="/block/{{previous.id}}">&larr; previous ({{previous.hash()}})</a><br>
-{% endif %}
-<p>
-{% if next %}
-    <a class="button" href="/block/{{next.id}}">&rarr; next({{next.hash()}})</a>
-{% endif %}
+<table>
+    <tr>
+        <th align='left'>Account 
+        <td>{% if account.name() %}{{account.name()}} ({% else %}account{%endif%}<a href="/account/{{account.id}}">{{account.address}}</a>{% if account.name() %}){%endif%}
+            <a class="button" href="/block/{{account.first_block().id}}">&larrb;</a>
+            <a class="button" href="https://nano.org/en/explore/account/{{account.address}}">&nearr;</a>
+    </tr>
+    <tr>
+        <th align='left'>Chain index
+        <td>{{sequence}}
+    </tr>
+    {% if previous %}
+    <tr>
+        <th align='left'>&lt;&lt; Previous 
+        <td><a class="button" href="/block/{{previous.id}}">{{previous.hash()}}</a>
+    </tr>
+    {% endif %}
+    {% if next %}
+    <tr>
+        <th align='left'>Next &gt;&gt;
+        <td><a class="button" href="/block/{{next.id}}">{{next.hash()}}</a>
+    </tr>
+    {% endif %}
+</table>
+
+
 <p>
 <table>
 <tr>
@@ -32,7 +48,11 @@ Block #{{sequence}} of {% if account.name() %}{{account.name()}} ({% else %}acco
     {% set source = block.other() %}
     <tr>
         <td>Source
+        {% if source %}
         <td><a href="/block/{{source.id}}">{{source.hash()}}</a>
+        {% else %}
+        <td><i>Undefined</i>
+        {% endif %}
     </tr>
 {% endif %}
 {% if block.type == "send" %}
@@ -46,7 +66,7 @@ Block #{{sequence}} of {% if account.name() %}{{account.name()}} ({% else %}acco
     <tr>
         <td>Other
         {% if other %}
-        <td><a href="/block/{{other.id}}">{{other.id}}</a>
+        <td><a href="/block/{{other.id}}">{{other.hash()}}</a>
         {% endif %}
     </tr>
     <tr>

@@ -58,11 +58,12 @@ class NanoDatabase:
         
     def account_from_address(self, addr):
         cur = self.sqldb.cursor()
-        cur.execute('select id from accounts where address=?', (addr,))
-        row = next(cur)
-        if row is None:
+        try:
+            cur.execute('select id from accounts where address=?', (addr,))
+            row = next(cur)
+            return Account(self, row[0], addr)        
+        except StopIteration:
             raise ValueError('Unknown account')
-        return Account(self, row[0], addr)        
         
     def block_from_id(self, id, type=None):
         assert isinstance(id, int)
@@ -70,11 +71,12 @@ class NanoDatabase:
     
     def block_from_hash(self, hash):
         cur = self.sqldb.cursor()
-        cur.execute('select id from blocks where hash=?', (hash,))
-        row = next(cur)
-        if row is None:
+        try:
+            cur.execute('select id from blocks where hash=?', (hash,))
+            row = next(cur)
+            return Block(self, int(row[0]))
+        except StopIteration:
             raise ValueError('No block with hash %s found' % hash)
-        return Block(self, int(row[0]))
         
     def accounts(self):
         res = []
@@ -219,10 +221,15 @@ class Block:
     def previous(self):
         """Return the previous block in the chain. Returns None if there is no previous block"""
         cur = self.sqldb.cursor()
-        cur.execute('select previous from blocks where id=?', (self.id,))
-        previd = next(cur)[0]
-        if previd is None:
+        
+        try:
+            cur.execute('select previous from blocks where id=?', (self.id,))
+            previd = next(cur)[0]
+            if previd is None:
+                return None
+        except StopIteration:
             return None
+        
         cur.execute('select type from blocks where id=?', (previd,))
         prevtype = next(cur)[0]
         return Block(self.db, previd, prevtype)
@@ -230,10 +237,15 @@ class Block:
     def next(self):
         """Return the next block in the chain. Returns None if there is no next block"""
         cur = self.sqldb.cursor()
-        cur.execute('select next from blocks where id=?', (self.id,))
-        nextid = next(cur)[0]
-        if nextid is None:
+        
+        try:
+            cur.execute('select next from blocks where id=?', (self.id,))
+            nextid = next(cur)[0]
+            if nextid is None:
+                return None
+        except StopIteration:
             return None
+            
         cur.execute('select type from blocks where id=?', (nextid,))
         nexttype = next(cur)[0]
         return Block(self.db, nextid, nexttype)
@@ -247,22 +259,26 @@ class Block:
         """
         if self.type in ['receive', 'open']:
             cur = self.sqldb.cursor()
-            cur.execute('select source from blocks where id=?', (self.id,))
-            b = Block(self.db, next(cur)[0])
-            assert b.type == 'send'
-            return b
+            try:
+                cur.execute('select source from blocks where id=?', (self.id,))
+                b = Block(self.db, next(cur)[0])
+                assert b.type == 'send'
+                return b
+            except StopIteration:
+                # No source block. E.g. block 991CF190094C00F0B68E2E5F75F6BEE95A2E0BD93CEAA4A6734DB9F19B728948 on genesis account
+                return None
         elif self.type == 'send':
             cur = self.sqldb.cursor()
             try:
                 cur.execute('select r.id, r.type from blocks s, blocks r where r.source==s.id and s.id=?', (self.id,))
                 id, type = next(cur)
+                assert type in ['open', 'receive']
+                b = Block(self.db, id, type)
+                return b
             except StopIteration:
                 # No destination block, i.e. not pocketed
                 return None
-            assert type in ['open', 'receive']
-            b = Block(self.db, id, type)
-            return b
-        
+            
         raise ValueError('Block type should be send or receive')
         
     def account(self):

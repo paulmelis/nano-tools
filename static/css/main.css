@@ -1,3 +1,7 @@
+html {
+	font-family: monospace; //Consolas,Monaco,Lucida Console,Liberation Mono
+}
+
 /* unvisited link */
 a:link {
     color: blue;
@@ -21,7 +25,7 @@ a:active {
 }
 
 .button {
-  font: 16px Arial;
+  //font: 16px Arial;
   text-decoration: none;
   background-color: #EEEEEE;
   color: #333333;

@@ -71,12 +71,17 @@ def account(id_or_address):
             name=name,
             id=account.id)
         
-@app.route('/block/<int:id>')
-def block(id):
+@app.route('/block/<id_or_hash>')
+def block(id_or_hash):
     
     db = get_db()
     
-    block = db.block_from_id(id)
+    if len(id_or_hash) == 64:
+        block = db.block_from_hash(id_or_hash)
+    else:
+        id = int(id_or_hash)
+        block = db.block_from_id(id)
+    
     account = block.account()
     sequence = block.sequence()
     previous = block.previous()
@@ -88,8 +93,11 @@ def block(id):
             sequence=sequence,
             previous=previous,
             next=next,
-            id=id)
+            id=block.id)
         
     
 if __name__ == '__main__':    
+    app.jinja_env.auto_reload = True
+    app.config['TEMPLATES_AUTO_RELOAD'] = True
+    
     app.run(host=HOST, port=PORT, debug=True)

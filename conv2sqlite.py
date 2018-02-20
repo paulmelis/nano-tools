@@ -162,6 +162,21 @@ def process_vote_entry(sqlcur, key, value):
 def process_open_entry(sqlcur, key, value):
     
     # blocks.cpp, deserialize_block(stream, type), rai::open_block members
+    
+    """
+    Special case: open block of genesis account 
+    991CF190094C00F0B68E2E5F75F6BEE95A2E0BD93CEAA4A6734DB9F19B728948
+    The source block does not exist!
+    {
+    "type": "open",
+    "source": "E89208DD038FBB269987689621D52292AE9C35941A7484756ECCED92A65093BA",
+    "representative": "xrb_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3",
+    "account": "xrb_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3",
+    "work": "62f05417dd3fb691",
+    "signature": "9F0C933C8ADE004D808EA1985FA746A7E95BA2A38F867640F53EC8F180BDFE9E2C1268DEAD7C2664F356E37ABA362BC58E46DBA03E523A7B5A19E4B6EB12BB02"
+    }  
+    See rai/secure.cpp for this block.
+    """
 
     source_block = value[:32]
     representative = value[32:64]
@@ -489,7 +504,7 @@ def derive_block_info(dbfile):
     print('Have %d accounts chains' % len(account_chains))
     assert len(account_chains) == len(open_block_to_account)
 
-    print('Storing per-block info')
+    print('Storing info for blocks in a chain')
 
     bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
     bar.update(len(blocks_to_process))
