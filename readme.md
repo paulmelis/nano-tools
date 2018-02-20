@@ -1,30 +1,43 @@
 Nano tools
 ==========
 
-Some Python-based tools for inspecting the Nano/RaiBlocks LMDB database,
-including a tool to convert (a subset of) stored blocks to a SQLite database
-for easier querying with SQL. Also includes an explorer similar to
-the one on nano.org, mostly for testing, but also usable to browse the data.
+Some Python-based tools for inspecting the Nano block-lattice and LMDB-based
+database that the Nano wallet and node software use. Incuded is a tool to
+convert (a subset of) stored blocks to a SQLite database for easier querying
+with SQL. Also includes an explorer similar to the one on nano.org, mostly for
+testing, but also usable to browse the data.
 
 Paul Melis (paul.melis@gmail.com)
 
-In case you find this software useful, donations are welcome at xrb_1mycqeczobsiyerohkmeeyt7ehyyfjyz5h4hi53ffb6p5qjrefzfcrpc454t
+In case you find this software useful, donations are welcome at
+xrb_1mycqeczobsiyerohkmeeyt7ehyyfjyz5h4hi53ffb6p5qjrefzfcrpc454t
 
 
 Files
 =====
 
 * `dump_wallet_db.py`
-  - Low-level tool to inspect the contents of the LMDB database
+  - Low-level tool to inspect the contents of the LMDB database used by the
+    Nano wallet/node software.
 * `conv2sqlite.py`
   - Main script to convert the LMDB-based Nano/RaiBlocks database to a SQLite
     database
   - Usage:
-    1. `$ ./conv2sqlite.py create`       
-    2. `$ ./conv2sqlite.py create_indices`
+    1. Close the official Nano wallet/node software, so nothing else is
+       accessing the LMDB database at `~/RaiBlocks`.
+    2. `$ ./conv2sqlite.py create`           
     3. `$ ./conv2sqlite.py derive_block_info`
-    4. You should now have a SQLite database file `nano.db`
-  - Note: the SQLite database is by default written in the current directory
+    4. `$ ./conv2sqlite.py create_indices`
+    5. Steps 2-4 will probably take a couple of minutes for a fully synced
+       Nano wallet/node, also depending on the speed of the disk being written
+       to.
+    6. You should now have a SQLite database file `nano.db`
+  - Note: the SQLite database is by default written in the current directory.
+    You can change the output file with the `-d` option.
+  - If you have enough free memory (say 4-8 GBs) you can
+    generate the SQLite database on a ram-disk, such as `/dev/shm` on Linux, for
+    faster generation and query performance. Copy it to a persistent disk later
+    if needed.
 * `nanodb.py`
   - An Python module that provides an object-oriented API to the SQLite database
     created by `conv2sqlite.py`
@@ -69,10 +82,29 @@ FAQ
     are available. In practice, it is developed and tested mostly on Linux. So
     with other operating systems there might be some things not fully working (yet).    
 
-* Why is the code for Python 3.x only?
+* Why is the code based on Python 3.x?
   - The main reason for using Python 3 was that it comes with an implementation
     of the blake2b hashing algorithm used in Nano, which is used in the routines
-    that work on accounts.    
+    that work on accounts.
+
+* Why convert to a separate SQLite database instead of working directly on
+  the LMDB database that the Nano wallet/node software uses?
+  1. It is safer to work on a separate copy of the wallet/node database, in case
+     anything goes wrong when working with the data.
+  2. SQL is a very powerful language for querying. Also, LMDB does not
+     offer indexing of the data, leading to potentially slow queries.
+  3. An LMDB database only contains key-value pairs, that need to be decoded
+     into separate fields. In contrast, a SQL table contains columns, one
+     per field, for easier querying.
+  4. It is easier and safer to add custom data in a separate table in the
+     SQLite database than it is in the LMDB database.
+
+* Is it safe to have the official Nano wallet/node running while converting
+  the LMDB database to SQLite?
+  - This has not been tested by the author of this software. It is recommended
+    that you NOT have the wallet/node running while doing the conversion,
+    regardless of what the LMDB docs say about concurrent access. Also, these
+    scripts might not handle unexpected changes to the LMDB database well.
 
 * Why use APSW instead of the built-in sqlite3 module?
   - [APSW](http://rogerbinns.github.io/apsw/) is an excellent library, aimed

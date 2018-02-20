@@ -164,9 +164,9 @@ def process_open_entry(sqlcur, key, value):
     # blocks.cpp, deserialize_block(stream, type), rai::open_block members
 
     """
-    Special case: open block of genesis account
+    Special case: open block of genesis account, shown below
     991CF190094C00F0B68E2E5F75F6BEE95A2E0BD93CEAA4A6734DB9F19B728948
-    The source block does not exist!
+    The source block does not exist! Where does the genesis balance come from?
     {
     "type": "open",
     "source": "E89208DD038FBB269987689621D52292AE9C35941A7484756ECCED92A65093BA",
@@ -328,6 +328,8 @@ def create(dbfile):
         #'vote': process_vote_entry,
     }
 
+    print("Reading the Nano database at %s" % RAIBLOCKS_LMDB_DB)
+
     # Open the RaiBlocks database
     env = lmdb.Environment(
         RAIBLOCKS_LMDB_DB, subdir=False,
@@ -338,7 +340,8 @@ def create(dbfile):
 
     sqldb = apsw.Connection(dbfile)
     sqlcur = sqldb.cursor()
-    sqlcur.execute('PRAGMA journal_mode=WAL;')
+    #sqlcur.execute('PRAGMA journal_mode=WAL;')
+    #sqlcur.execute('PRAGMA synchronous=NORMAL;')    
     sqlcur.execute(SCHEMA)
     sqlcur.execute(DROP_INDICES)
 

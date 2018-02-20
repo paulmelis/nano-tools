@@ -32,43 +32,47 @@ KNOWN_ACCOUNTS = {
     'xrb_3jwrszth46rk1mu7rmb4rhm54us8yg1gw3ipodftqtikf5yqdyr7471nsg1k': 'Binance Representative'
 }
 
-def blockid2hash(id):
-    cur = db.cursor()
-    cur.execute('select hash from blocks where id=?', (id,))
-    return next(cur)[0]
-    
 class NanoDatabase:
-    
+
     def __init__(self, dbfile, trace=False):
         self.sqldb = apsw.Connection(dbfile, flags=apsw.SQLITE_OPEN_READONLY)
-        
         if trace:
             self.sqldb.setexectrace(self._exectrace)
 
     def _exectrace(self, cursor, sql, bindings):
         print('%s [%s]' % (sql, repr(bindings)))
         return True
-        
+
     def close(self):
+        # Mostly for use under Flask
         self.sqldb.close()
-        
+
     def account_from_id(self, id):
         assert isinstance(id, int)
-        return Account(self, id)      
-        
+        return Account(self, id)
+
     def account_from_address(self, addr):
         cur = self.sqldb.cursor()
         try:
             cur.execute('select id from accounts where address=?', (addr,))
             row = next(cur)
-            return Account(self, row[0], addr)        
+            return Account(self, row[0], addr)
         except StopIteration:
             raise ValueError('Unknown account')
-        
+
+    def accounts(self):
+        """Return a list of all accounts"""
+        res = []
+        cur = self.sqldb.cursor()
+        cur.execute('select id, address from accounts')
+        for id, addr in cur:
+            res.append(Account(self, id, addr))
+        return res
+
     def block_from_id(self, id, type=None):
         assert isinstance(id, int)
         return Block(self, id, type)
-    
+
     def block_from_hash(self, hash):
         cur = self.sqldb.cursor()
         try:
@@ -77,41 +81,36 @@ class NanoDatabase:
             return Block(self, int(row[0]))
         except StopIteration:
             raise ValueError('No block with hash %s found' % hash)
-        
-    def accounts(self):
-        res = []
-        cur = self.sqldb.cursor()
-        cur.execute('select id, address from accounts')
-        for id, addr in cur:
-            res.append(Account(self, id, addr))
-        return res
-        
+
+    # XXX add blocks()?
+
     def check(self):
         """Perform consistency checks, mostly for debugging purposes"""
-        
+
         pass
-        
+
         # Check for missing blocks, e.g. previous id points to non-existent block
-        
+
         # Check for accounts not having an open block
         # Check that no forks exist, i.e. two or more blocks with a common previous block
-        
+
         # Number of send blocks >= number of receive blocks + number of open blocks
-        
+
         # Check successor value against previous of successor block
-        
+
         # check block hash length (which are not the same, have leading zeroes?)
-        
-        
+
+
     def stats(self):
         pass
-        
+
         # number of frontiers, i.e. blocks with null next?
-        
+
     def cursor(self):
         """For when you know what you're doing..."""
         return self.sqldb.cursor()
-        
+
+
 class Account:
 
     def __init__(self, db, id, address=None):
@@ -125,10 +124,11 @@ class Account:
         self.address = address
         self.open_block = None
         self.name_ = None
-        
+
     def __repr__(self):
         return '<Account #%d %s>' % (self.id, self.address)
-        
+
+    # XXX rename to open_block()
     def first_block(self):
         """Should always return an "open" block"""
         if self.open_block is not None:
@@ -141,20 +141,20 @@ class Account:
             return None
         self.open_block = Block(self.db, row[0])
         return self.open_block
-        
+
     def chain(self, type=None, limit=None):
         """
         Return all blocks in the chain, in sequence, open block first.
-        If "type" is set only blocks of the requested type will be returned.
-        If "limit" is set at most limit blocks will be returned.
+        If "type" is set, only blocks of the requested type will be returned.
+        If "limit" is set, at most limit blocks will be returned.
         """
-        
+
         # XXX how to include not pocketed blocks to this account?
         #     i.e. only send from other account to here, e.g
         #     https://nano.org/en/explore/block/D7C6604C37F23F05D4A98A365DB5B91EFFBEAD3E851EC4A49F579BBB8E88CFF1
         # Or multiple not pocketed ones:
         # https://nano.org/en/explore/account/xrb_39ymww61tksoddjh1e43mprw5r8uu1318it9z3agm7e6f96kg4ndqg9tuds4
-        
+
         q = 'select block from block_info where account=?'
         v = [self.id]
         if type is not None:
@@ -164,17 +164,17 @@ class Account:
         if limit is not None:
             q += ' limit ?'
             v.append(limit)
-        
-        res = []            
+
+        res = []
         cur = self.db.cursor()
         cur.execute(q, v)
-        
+
         for row in cur:
             b = Block(self.db, row[0])
             res.append(b)
-            
+
         return res
-        
+
     def name(self):
         if self.name_ is not None:
             return self.name_
@@ -183,18 +183,18 @@ class Account:
         name = next(cur)[0]
         self.name_ = name
         return name
-        
+
     # def balance()
     # find last send/receive block
 
 
 class Block:
-    
+
     def __init__(self, db, id, type=None):
         assert isinstance(id, int)
         self.db = db
         self.sqldb = db.sqldb
-        
+
         self.id = id
         if type is None:
             cur = self.sqldb.cursor()
@@ -206,10 +206,10 @@ class Block:
         self.account_ = None
         self.sequence_ = None
         self.destination_ = None
-        
+
     def __repr__(self):
         return '<Block #%d %s %s>' % (self.id, self.type, self.hash())
-        
+
     def hash(self):
         if self.hash_ is not None:
             return self.hash_
@@ -221,7 +221,7 @@ class Block:
     def previous(self):
         """Return the previous block in the chain. Returns None if there is no previous block"""
         cur = self.sqldb.cursor()
-        
+
         try:
             cur.execute('select previous from blocks where id=?', (self.id,))
             previd = next(cur)[0]
@@ -229,15 +229,15 @@ class Block:
                 return None
         except StopIteration:
             return None
-        
+
         cur.execute('select type from blocks where id=?', (previd,))
         prevtype = next(cur)[0]
         return Block(self.db, previd, prevtype)
-        
+
     def next(self):
         """Return the next block in the chain. Returns None if there is no next block"""
         cur = self.sqldb.cursor()
-        
+
         try:
             cur.execute('select next from blocks where id=?', (self.id,))
             nextid = next(cur)[0]
@@ -245,17 +245,16 @@ class Block:
                 return None
         except StopIteration:
             return None
-            
+
         cur.execute('select type from blocks where id=?', (nextid,))
         nexttype = next(cur)[0]
         return Block(self.db, nextid, nexttype)
-        
+
     def other(self):
         """
         Return the "sister block" for certain types of blocks:
         - For a send block return the corresponding receive/open block
-        - For a receive block return the source block
-        - For an open block return the source block
+        - For a receive/open block return the source block
         """
         if self.type in ['receive', 'open']:
             cur = self.sqldb.cursor()
@@ -278,9 +277,9 @@ class Block:
             except StopIteration:
                 # No destination block, i.e. not pocketed
                 return None
-            
-        raise ValueError('Block type should be send or receive')
-        
+
+        raise ValueError('Block type should be send, receive or open')
+
     def account(self):
         if self.account_ is not None:
             return self.account_
@@ -289,9 +288,10 @@ class Block:
         id = next(cur)[0]
         self.account_ = self.db.account_from_id(id)
         return self.account_
-        
+
+    # XXX rename to index()?
     def sequence(self):
-        """Sequence number in account chain, 0=open block"""
+        """Sequence number of this block in the account chain (open block=0)"""
         if self.sequence_ is not None:
             return self.sequence_
         cur = self.sqldb.cursor()
@@ -299,52 +299,53 @@ class Block:
         idx = next(cur)[0]
         self.sequence_ = idx
         return idx
-        
+
     def destination(self):
-        """For a send block return destination account. 
-        For other block types returns None"""
-        if self.destination_ is not None:
-            return self.destination_
+        """For a send block return destination account.
+        For other block types return None"""
         if self.type != 'send':
             return None
+        if self.destination_ is not None:
+            return self.destination_
         cur = self.sqldb.cursor()
         cur.execute('select destination from blocks where id=?', (self.id,))
         destid = next(cur)[0]
         self.destination_ = self.db.account_from_id(destid)
         return self.destination_
-        
-        
+
+    # XXX this needs more work
     def balance(self):
+        """
+        Return the account balance at this block in the chain
+        """
         if self.balance_ is not None:
             return self.self.balance_
             
-        if self.type in ['receive', 'open']:
-            # XXX no no no!
-            self.balance_ = self.other().balance()
-        elif self.type != 'send':
-            return None
-        else:
-            assert self.type == 'send'
+        if self.type == 'send':
             cur = self.sqldb.cursor()
             cur.execute('select balance from blocks where id=?', (self.id,))
             self.balance_ = next(cur)[0]
-            
+        elif self.type in ['receive', 'open']:
+            # XXX no no no!
+            self.balance_ = self.other().balance()
+        else:
+            # XXX
+            return None
+
         return self.balance_
-        
+
     # XXX add balance_raw()
-        
-    def amount(self): 
+
+    def amount(self):
         """For a send/receive/open block compute the amount being transfered"""
         if self.type not in ['open', 'send', 'receive']:
             raise TypeError('Not a send/receive/open block')
         if self.type == 'send':
-            # Find 
+            # Find
             pass
 
 
 if __name__ == '__main__':
-    
+
     db = NanoDatabase(sys.argv[1])
     db.check()
-    
-    
