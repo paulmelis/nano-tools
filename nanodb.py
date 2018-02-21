@@ -74,6 +74,12 @@ class NanoDatabase:
         for id, addr in cur:
             res.append(Account(self, id, addr))
         return res
+        
+    #def account_tree(self):
+    # All open blocks reference a send block from another account, which
+    # must have been created before the receiving account was opened. 
+    # Therefore, account creation can be represented as a tree, with 
+    # the Genesis account as the root.
 
     def block_from_id(self, id, type=None):
         assert isinstance(id, int)
@@ -116,6 +122,10 @@ class NanoDatabase:
     def cursor(self):
         """For when you know what you're doing..."""
         return self.sqldb.cursor()
+        
+    def dot_graph(self, fname, blocks):
+        """For a selection of blocks write a DOT graph to file"""
+        pass
 
 
 class Account:

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import collections
+import apsw
 
 """
 Edge notation and meaning: 
@@ -114,30 +116,52 @@ So in case the send destination account is opened, the send should come
 before the destination account's open block.
 Same remark for setting a representative to a non-opened account.
 
-Can you send to the account being sent from?    
+Can you send to the account being sent from? Yes!
+https://nano.org/en/explore/block/2D6A9F3B01D0BF5973D7482F314362F9BA59E9E8415989EF3D6F574BF73210A2
+{
+    "type": "send",
+    "previous": "514D68178C9B54F03D7F5CABBFC8CEB9F80007BDB6F79E02D46A03132484029B",
+    "destination": "xrb_3m8n5i1yprf19mjiqook36eirpyf7er5mabdfaneixtt8fygewn7z7w88sym",
+    "balance": "0026B610ABD328978FD07ADA00000000",
+    "work": "ef1e40d7cb893a56",
+    "signature": "3FC763A6DC0A194F308BEE693F6FCA865A427557E3F993E1A236FF118951F7F4A04E0B2F441BAB63D5A1D34B1D1AD735CCB03036C78EF47277714FBBC1EA8409"
+}
+
+
 """
 
-MARK_NONE = 0
+MARK_UNVISITED = 0
 MARK_TEMPORARY = 1
-MARK_PERMATENT = 2
+MARK_PERMANENT = 2
 
-def visit(L, permanent, temporary, nodes, n):
+trace = False
 
-    if n in permanent:
+def visit(L, status, nodes, n):
+    
+    global trace
+    
+    if n == 220451:
+        trace = True
+        
+    if trace:
+        print('visit %d' % n)
+
+    if status[n] == MARK_PERMANENT:
         return
         
-    if n in temporary:
-        raise ValueError('Not a DAG')
+    if status[n] == MARK_TEMPORARY:
+        print(nodes[n])
+        raise ValueError('Not a DAG (%d is marked as temporary)' % n)
         
-    temporary.add(n)
+    status[n] = MARK_TEMPORARY
     
     for m in nodes[n]:
-        visit(L, permanent, temporary, nodes, m)
+        # Edge from n -> m
+        visit(L, status, nodes, m)
         
-    temporary.remove(n)
-    permanent.add(n)
+    status[n] = MARK_PERMANENT
     
-    L.append(n)
+    L.appendleft(n)
     
     
 def topological_sort(nodes):
@@ -145,23 +169,176 @@ def topological_sort(nodes):
     """
     nodes: {<node>: [<target-node>, ...]}
     """
-        
-    L = []
     
-    unmarked = set(nodes.keys())
-    permanent = set()
-    temporary = set()
+    # Check consistency
+    for src, dsts in nodes.items():
+        for dst in dsts:
+            if dst not in nodes:
+                print('Warning: nodes[%d] contains %d, which is not in nodes[]' % (src, dst))
+        
+    L = collections.deque()
+    stack = []
+
+    # 0 = unvisisted, 1 = visited, but children not all visited yet, 2 = node and all its reachable children visited 
+    status = {}   
+    for src in nodes.keys():
+        status[src] = MARK_UNVISITED
+        
+    # Push the Genesis block
+    stack.append(0)
     
-    while len(unmarked) > 0:        
-        n = unmarked.pop()
-        visit(L, permanent, temporary, nodes, n)
+    while True:
         
-    L.reverse()
+        n = stack.pop()
         
-    return L
+        global trace
+        
+        if n == 220451:
+            trace = True
+            
+        if trace:
+            print('visit %d' % n)
+
+        if status[n] == MARK_PERMANENT:
+            continue
+            
+        if status[n] == MARK_TEMPORARY:
+            print(nodes[n])
+            raise ValueError('Not a DAG (%d is marked as temporary)' % n)
+            
+        status[n] = MARK_TEMPORARY
+        
+        for m in nodes[n]:
+            # Edge from n -> m
+            stack.append(m)
+            visit(L, status, nodes, m)
+            
+        status[n] = MARK_PERMANENT
+        
+        L.appendleft(n)
+        
+        
+        
+    visit(L, status, nodes, 0)
+        
+    return list(L)
+    
+    
+def generate_dependencies():
+    
+    def add_edge(src, dst):
+        if src not in nodes:
+            nodes[src] = [dst]
+        else:
+            nodes[src].append(dst)
+    
+    db = apsw.Connection(sys.argv[1], flags=apsw.SQLITE_OPEN_READONLY)
+    cur = db.cursor()
+    
+    cur.execute('select id, account from blocks where type=?', ('open',))
+    
+    global block_to_type
+    block_to_type = {}
+
+    account_to_open_block = {}
+    for id, account in cur:
+        account_to_open_block[account] = id
+    
+    # XXX include representative?
+    cur.execute('select id, type, previous, next, source, destination, i.account from blocks b, block_info i where b.id=i.block')
+    
+    nodes = {}
+    used_block_ids = set()
+    
+    for id, type, previous, next, source, destination, this_account in cur:
+        
+        if id in [220451, 212959]:
+            print(id, type, previous, next, source, destination, this_account)
+            
+        block_to_type[id] = type
+        used_block_ids.add(id)
+        
+        if type == 'open':
+            if source is not None:
+                # {other} source -> open {this}
+                if source != this_account:
+                    # Unless sending to same account    
+                    add_edge(source, id)
+            if previous is not None:
+                # {other} previous -> open {this}
+                add_edge(previous, id)
+        
+        elif type == 'send':
+            assert destination is not None
+            """
+            # XXX we can't make an open block always come after the send
+            # block whole transfer it receives, as the send may (indirectly) transfer
+            # to the current account and therefore open block. In which case there would be a cycle.
+            # E.g. cycle starting at 288611994071C94E9881958A29D678974EA26DDD3F75B7D069F8AF82B999FBA8
+            # {this} send -> destination account open {other} 
+            # Make sure send appears before destination account is opened
+            if destination in account_to_open_block:
+                if destination != this_account:
+                    # Unless sending to same account
+                    # XXX Sending to the same account is legal, see 2D6A9F3B01D0BF5973D7482F314362F9BA59E9E8415989EF3D6F574BF73210A2
+                    add_edge(id, account_to_open_block[destination])
+            """
+            
+            # {this} send -> receive {other}
+            # Handled in receive
+            
+            # {other} previous -> send {this}
+            add_edge(previous, id)
+            
+        elif type == 'receive':
+            # {other} send -> receive {this}
+            add_edge(source, id)
+            
+            # {other} previous -> receive {this}
+            add_edge(previous, id)
+            
+        elif type == 'change':
+            # XXX representative
+            
+            if previous is not None:
+                # {other} previous -> change {this}
+                add_edge(previous, id)
+                
+    for id in used_block_ids:
+        if id not in nodes:
+            nodes[id] = []
+            
+    return nodes
+    
+def _traverse(f, visited, current):
+    
+    if current in visited:
+        return False
+        
+    visited.add(current)
+    
+    label = '%d\\n%s' % (current, block_to_type[current])
+    f.write('%d [label="%s"];\n' % (current, label))
+    
+    cont = True
+    
+    for dst in nodes[current]:
+        f.write('%d -> %d;\n' % (current, dst))
+        cont = cont and _traverse(f, visited, dst)
+    
+    return cont
+    
+    
+def traverse_dot(fname, n):
+    with open(fname, 'wt') as f:
+        f.write('digraph G {\n')
+        _traverse(f, set(), n)
+        f.write('}\n')
     
     
 if __name__ == '__main__':
+    
+    import sys
     
     nodes = {
         'A': ['B', 'C', 'D'],
@@ -170,12 +347,36 @@ if __name__ == '__main__':
         'D': ['B'],
     }
     
-    print(topological_sort(nodes))
+    print('Generating edges')
+    nodes = generate_dependencies()
+
+    print('Creating igraph graph')
+    import igraph
+        
+    edges = []
+    for src, dsts in nodes.items():
+        for dst in dsts:
+            edges.append((src, dst))
+
+    nv = max(nodes.keys())+1
+    g = igraph.Graph(directed=True)
+    g.add_vertices(nv)
+    g.add_edges(edges)
+    print('is DAG?', g.is_dag())
     
-    N = 1000
+    print('sorting')
+    order = g.topological_sorting()
+    doh
+    #traverse_dot('t.dot', 220451)
+    #doh
     
-    nodes = {}
+    #for i in [0, 1, 2, 3, 4]:
+    #    print(i, nodes[i])
+    #doh
     
-    for i in range(N):
-        deps = 
+                
+    print(len(nodes))
+    
+    print('Sorting')
+    order = topological_sort(nodes)
     

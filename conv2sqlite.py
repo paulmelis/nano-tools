@@ -6,7 +6,7 @@ import lmdb, apsw
 import progressbar
 
 from rainumbers import *
-from nanodb import KNOWN_ACCOUNTS, GENESIS_OPEN_BLOCK_HASH, GENESIS_ACCOUNT
+from nanodb import KNOWN_ACCOUNTS, GENESIS_OPEN_BLOCK_HASH, GENESIS_ACCOUNT, GENESIS_PUBLIC_KEY
 
 DATADIR = 'RaiBlocks'
 DBPREFIX = 'data.ldb'
@@ -14,12 +14,14 @@ RAIBLOCKS_LMDB_DB = os.path.join(os.environ['HOME'], DATADIR, DBPREFIX)
 
 DEFAULT_SQLITE_DB = 'nano.db'
 
+# XXX store signature and work in separate table
 SCHEMA = """
 begin;
 
 drop table if exists accounts;
 drop table if exists blocks;
 drop table if exists block_info;
+drop table if exists block_validation;
 
 create table accounts
 (
@@ -43,23 +45,33 @@ create table blocks
     type        text not null,
 
     -- All blocks
-    previous    integer,            -- Can be NULL for an open block
-    next        integer,            -- "successor" in LMDB; called "next" to match "previous"
-    signature   text not null,
+    previous    integer,            -- [block]      Can be NULL for an open block
+    next        integer,            -- [block]      "successor" in LMDB; called "next" to match "previous"
+    
 
     -- Depending on block type
-    work            text,           -- change, open, receive, send
-    representative  integer,        -- change
-    source          integer,        -- open, receive
-    destination     integer,        -- send
-    balance         float,          -- Mxrb, float representation (not fully precise, 8 byte precision instead of needed 16 bytes)
-    balance_raw     text,           -- raw, integer represented as string
-    account         integer,        -- open, vote
+    work            text,           --              change, open, receive, send
+    representative  integer,        -- [account]    change
+    source          integer,        -- [block]      open, receive
+    destination     integer,        -- [account]    send
+    balance         float,          --              Mxrb, float representation (not fully precise, 8 byte precision instead of needed 16 bytes)
+    balance_raw     text,           --              raw, integer represented as string
+    account         integer,        -- [account]    open, vote
     --sequence_number integer,        -- vote
     --block           text,           -- vote
 
     primary key(id),
     unique(hash)
+);
+
+create table block_validation
+(
+    id          integer not null,
+    
+    signature   text not null,
+    work        text,
+    
+    primary key(id)
 );
 
 create table block_info
@@ -125,6 +137,10 @@ def get_block_id(blockhash):
 
     if bin2hex(blockhash) == '0000000000000000000000000000000000000000000000000000000000000000':
         # Used in the LMDB database to indicate a null block "pointer"
+        return None
+        
+    if bin2hex(blockhash) == GENESIS_PUBLIC_KEY:
+        # Source block of the genesis open block does not exist
         return None
 
     global next_block_id
@@ -231,10 +247,11 @@ def process_open_entry(sqlcur, key, value):
     work = '%08x' % work
     successor_id = get_block_id(successor)
 
-    # XXX work value
-
-    sqlcur.execute('insert into blocks (id, hash, type, source, representative, account, signature, work, next) values (?,?,?,?,?,?,?,?,?)',
-        (block_id, hash, 'open', source_id, representative_id, account_id, signature, work, successor_id))
+    sqlcur.execute('insert into blocks (id, hash, type, source, representative, account, next) values (?,?,?,?,?,?,?)',
+        (block_id, hash, 'open', source_id, representative_id, account_id, successor_id))
+        
+    sqlcur.execute('insert into block_validation (id, signature, work) values (?,?,?)', 
+        (block_id, signature, work))
 
 def process_change_entry(sqlcur, key, value):
 
@@ -265,8 +282,11 @@ def process_change_entry(sqlcur, key, value):
     work = '%08x' % work
     successor_id = get_block_id(successor)
 
-    sqlcur.execute('insert into blocks (id, hash, type, previous, representative, signature, work, next) values (?,?,?,?,?,?,?,?)',
-        (block_id, hash, 'change', previous_id, representative_id, signature, work, successor_id))
+    sqlcur.execute('insert into blocks (id, hash, type, previous, representative, next) values (?,?,?,?,?,?)',
+        (block_id, hash, 'change', previous_id, representative_id, successor_id))
+        
+    sqlcur.execute('insert into block_validation (id, signature, work) values (?,?,?)', 
+        (block_id, signature, work))
 
 def process_receive_entry(sqlcur, key, value):
 
@@ -297,8 +317,12 @@ def process_receive_entry(sqlcur, key, value):
     work = '%08x' % work
     successor_id = get_block_id(successor)
 
-    sqlcur.execute('insert into blocks (id, hash, type, previous, source, signature, work, next) values (?,?,?,?,?,?,?,?)',
-        (block_id, hash, 'receive', previous_id, source_id, signature, work, successor_id))
+    sqlcur.execute('insert into blocks (id, hash, type, previous, source, next) values (?,?,?,?,?,?)',
+        (block_id, hash, 'receive', previous_id, source_id, successor_id))
+        
+    sqlcur.execute('insert into block_validation (id, signature, work) values (?,?,?)', 
+        (block_id, signature, work))
+
 
 def process_send_entry(sqlcur, key, value):
 
@@ -335,8 +359,12 @@ def process_send_entry(sqlcur, key, value):
     successor_id = get_block_id(successor)
 
     # Note that we store balance_raw (a Python long) as a string
-    sqlcur.execute('insert into blocks (id, hash, type, previous, destination, balance, balance_raw, signature, work, next) values (?,?,?,?,?,?,?,?,?,?)',
-        (block_id, hash, 'send', previous_id, destination_id, balance_mxrb, str(balance_raw), signature, work, successor_id))
+    sqlcur.execute('insert into blocks (id, hash, type, previous, destination, balance, balance_raw, next) values (?,?,?,?,?,?,?,?)',
+        (block_id, hash, 'send', previous_id, destination_id, balance_mxrb, str(balance_raw), successor_id))
+        
+    sqlcur.execute('insert into block_validation (id, signature, work) values (?,?,?)', 
+        (block_id, signature, work))
+
 
 # XXX should make db = sqlite explicit
 @click.command()
@@ -533,6 +561,11 @@ def derive_block_info(dbfile):
 
     print('Have %d accounts chains' % len(account_chains))
     assert len(account_chains) == len(open_block_to_account)
+    
+    # Compute account balance at each block, plus amounts transfered
+    # by send/receive/open blocks.
+    
+    # Bootstrap with the Genesis account.
 
     print('Storing info for blocks in a chain')
 
