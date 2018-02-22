@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import collections
 import apsw
+import progressbar
 
 """
 Edge notation and meaning: 
@@ -247,14 +248,33 @@ def topological_sort(nodes):
         
     return list(L)
     
+
+def add_edge(nodes, src, dst):
+    global edge_count
+    try:
+        nodes[src].append(dst)
+    except KeyError:
+        nodes[src] = [dst]
+        
+    edge_count += 1
+    bar.update(edge_count)
+    
     
 def generate_dependencies():
+    """
+    Generate a set of edges that represent dependencies between blocks (and accounts)
     
-    def add_edge(src, dst):
-        if src not in nodes:
-            nodes[src] = [dst]
-        else:
-            nodes[src].append(dst)
+    Returns a dict:
+    - key = block ID
+    - value = list of block IDs that depend on the key block
+    """
+
+    global edge_count
+    edge_count = 0
+    
+    print('Generating edges')
+    global bar
+    bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
     
     db = apsw.Connection(sys.argv[1], flags=apsw.SQLITE_OPEN_READONLY)
     cur = db.cursor()
@@ -267,13 +287,13 @@ def generate_dependencies():
     account_to_open_block = {}
     for id, account in cur:
         account_to_open_block[account] = id
+        
+    nodes = {}
+    used_block_ids = set()        
     
     # XXX include representative?
     cur.execute('select id, type, previous, next, source, destination, i.account from blocks b, block_info i where b.id=i.block')
-    
-    nodes = {}
-    used_block_ids = set()
-    
+        
     for id, type, previous, next, source, destination, this_account in cur:
         
         #if id in [220451, 212959]:
@@ -288,10 +308,10 @@ def generate_dependencies():
                 # {other} <source> -> open {this}
                 if source != this_account:
                     # Unless sending to same account    
-                    add_edge(source, id)
+                    add_edge(nodes, source, id)
             if previous is not None:
                 # {other} <previous> -> open {this}
-                add_edge(previous, id)
+                add_edge(nodes, previous, id)
         
         elif type == 'send':
             assert destination is not None
@@ -306,34 +326,36 @@ def generate_dependencies():
                 if destination != this_account:
                     # Unless sending to same account
                     # XXX Sending to the same account is legal, see 2D6A9F3B01D0BF5973D7482F314362F9BA59E9E8415989EF3D6F574BF73210A2
-                    add_edge(id, account_to_open_block[destination])
+                    add_edge(nodes, id, account_to_open_block[destination])
             """
             
             # {this} send -> receive {other}
             # Handled in receive
             
             # {other} <previous> -> send {this}
-            add_edge(previous, id)
+            add_edge(nodes, previous, id)
             
         elif type == 'receive':
             # {other} send -> receive {this}
-            add_edge(source, id)
+            add_edge(nodes, source, id)
             
             # {other} <previous> -> receive {this}
-            add_edge(previous, id)
+            add_edge(nodes, previous, id)
             
         elif type == 'change':
             # XXX representative
             
             if previous is not None:
                 # {other} <previous> -> change {this}
-                add_edge(previous, id)
+                add_edge(nodes, previous, id)
                 
     for id in used_block_ids:
         if id not in nodes:
             nodes[id] = []
             
     _check(nodes)
+    
+    bar.finish()
             
     return nodes
     
@@ -374,7 +396,6 @@ if __name__ == '__main__':
         'D': ['B'],
     }
     
-    print('Generating edges')
     nodes = generate_dependencies()
 
     """

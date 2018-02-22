@@ -453,6 +453,15 @@ def create(dbfile):
 
 @click.command()
 @click.option('-d', '--dbfile', default=DEFAULT_SQLITE_DB, help='SQLite database file', show_default=True)
+def create_indices(dbfile):
+    """Create indices on SQL tables"""
+    sqldb = apsw.Connection(dbfile)
+    sqlcur = sqldb.cursor()
+    sqlcur.execute(DROP_INDICES)
+    sqlcur.execute(CREATE_INDICES)
+
+@click.command()
+@click.option('-d', '--dbfile', default=DEFAULT_SQLITE_DB, help='SQLite database file', show_default=True)
 def drop_indices(dbfile):
     """Create indices on SQL tables for faster querying"""
     sqldb = apsw.Connection(dbfile)
@@ -461,12 +470,11 @@ def drop_indices(dbfile):
 
 @click.command()
 @click.option('-d', '--dbfile', default=DEFAULT_SQLITE_DB, help='SQLite database file', show_default=True)
-def create_indices(dbfile):
-    """Create indices on SQL tables"""
+def analyze(dbfile):
+    """Let SQLite analyze the tables for improved query performance"""
     sqldb = apsw.Connection(dbfile)
     sqlcur = sqldb.cursor()
-    sqlcur.execute(DROP_INDICES)
-    sqlcur.execute(CREATE_INDICES)
+    sqlcur.execute('analyze')
 
 @click.command()
 @click.option('-d', '--dbfile', default=DEFAULT_SQLITE_DB, help='SQLite database file', show_default=True)
@@ -588,15 +596,26 @@ def derive_block_info(dbfile):
 
     bar.finish()
 
+"""
+@click.command()
+@click.option('-d', '--dbfile', default=DEFAULT_SQLITE_DB, help='SQLite database file', show_default=True)
+def convert(dbfile):
+    "Convert LMDB database to SQLite (all steps)"
+    create(dbfile)
+    derive_block_info(dbfile)
+    create_indices(dbfile)
+"""
 
 @click.group()
 def cli():
     pass
 
+#cli.add_command(convert)
 cli.add_command(create)
 cli.add_command(derive_block_info)
 cli.add_command(create_indices)
 cli.add_command(drop_indices)
+cli.add_command(analyze)
 
 if __name__ == '__main__':
     cli()
