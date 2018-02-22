@@ -177,7 +177,7 @@ class Account:
         if type is not None:
             q += ' and type=?'
             v.append(type)
-        q += ' order by sequence desc'
+        q += ' order by chain_index desc'
         if limit is not None:
             q += ' limit ?'
             v.append(limit)
@@ -221,7 +221,7 @@ class Block:
         self.hash_ = None
         self.balance_ = None
         self.account_ = None
-        self.sequence_ = None
+        self.chain_index_ = None
         self.destination_ = None
 
     def __repr__(self):
@@ -305,16 +305,15 @@ class Block:
         id = next(cur)[0]
         self.account_ = self.db.account_from_id(id)
         return self.account_
-
-    # XXX rename to index()?
-    def sequence(self):
-        """Sequence number of this block in the account chain (open block=0)"""
-        if self.sequence_ is not None:
-            return self.sequence_
+    
+    def chain_index(self):
+        """Index of this block in the account chain (0 = open block)"""
+        if self.chain_index_ is not None:
+            return self.chain_index_
         cur = self.sqldb.cursor()
-        cur.execute('select sequence from block_info where block=?', (self.id,))
+        cur.execute('select chain_index from block_info where block=?', (self.id,))
         idx = next(cur)[0]
-        self.sequence_ = idx
+        self.chain_index_ = idx
         return idx
 
     def destination(self):

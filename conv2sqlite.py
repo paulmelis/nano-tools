@@ -7,6 +7,7 @@ import progressbar
 
 from rainumbers import *
 from nanodb import KNOWN_ACCOUNTS, GENESIS_OPEN_BLOCK_HASH, GENESIS_ACCOUNT, GENESIS_PUBLIC_KEY
+from toposort import topological_sort, generate_block_dependencies
 
 DATADIR = 'RaiBlocks'
 DBPREFIX = 'data.ldb'
@@ -76,9 +77,11 @@ create table block_validation
 
 create table block_info
 (
-    block       integer not null,
-    account     integer not null,
-    sequence    integer not null,   -- Index in chain (0 = open block)
+    block           integer not null,
+    account         integer not null,
+    
+    chain_index     integer not null,   -- Index in account chain (0 = open block)    
+    global_index    integer,            -- Index in the global topological sort (0 = genesis block)
     
     --balance   text,   -- balance at this block, in raw (string representation)
     --amount    text,   -- amount transfered by this block, in raw (string representation); only for send/receive/open blocks
@@ -101,7 +104,8 @@ drop index if exists blocks_next;
 drop index if exists blocks_type;
 
 drop index if exists block_info_account;
-drop index if exists block_info_sequence;
+drop index if exists block_info_chain_index;
+drop index if exists block_info_global_index;
 """
 
 CREATE_INDICES = """
@@ -116,7 +120,10 @@ create index blocks_next on blocks (next);
 create index blocks_type on blocks (type);
 
 create index block_info_account on block_info (account);
-create index block_info_sequence on block_info (sequence);
+create index block_info_chain_index on block_info (chain_index);
+create index block_info_chain_index on block_info (global_index);
+
+analyze;
 """
 
 # Map block hash (bytes) to integer ID
@@ -482,6 +489,7 @@ def derive_block_info(dbfile):
 
     sqldb = apsw.Connection(dbfile)
     sqlcur = sqldb.cursor()
+    sqlcur.execute('delete from block_info')    
 
     # Previous point for a block, or None (for open blocks)
     # Key: block id
@@ -491,11 +499,13 @@ def derive_block_info(dbfile):
     # Get open blocks (as they have an account assigned)
 
     open_block_to_account = {}
+    account_to_open_block = {}
 
     sqlcur.execute('select id, account from blocks where type=?', ('open',))
 
     for id, account in sqlcur:
         open_block_to_account[id] = account
+        account_to_open_block[account] = id
         block_to_previous[id] = None
 
     # Gather all other blocks
@@ -569,9 +579,29 @@ def derive_block_info(dbfile):
     print('Have %d accounts chains' % len(account_chains))
     assert len(account_chains) == len(open_block_to_account)
     
-    # Compute account balance at each block, plus amounts transfered
-    # by send/receive/open blocks.
+    # Determine block -> account mapping
     
+    block_to_account = {}
+    
+    for last_block, chain in account_chains.items():
+        account = open_block_to_account[chain[0]]        
+        for block in chain:
+            block_to_account[block] = account
+        
+    # Perform global topological sort of all blocks
+    # (uses block_info results from previous step)
+            
+    edges = generate_block_dependencies(sqlcur, account_to_open_block, block_to_account)
+    
+    print('Determining topological order')
+    order = topological_sort(edges)
+    
+    block_to_global_index = {}
+    for idx, block in enumerate(order):
+        block_to_global_index[block] = idx
+        
+    # XXX Compute account balance at each block, plus amounts transfered
+    # by send/receive/open blocks.
     # Bootstrap with the Genesis account.
 
     print('Storing per-block info')
@@ -580,19 +610,21 @@ def derive_block_info(dbfile):
     bar.update(len(blocks_to_process))
     i = 0
 
-    sqlcur.execute('begin')
+    sqlcur.execute('begin')        
 
     for last_block, chain in account_chains.items():
 
         account = open_block_to_account[chain[0]]
-        for idx, block in enumerate(chain):
-            sqlcur.execute('insert into block_info (block, account, sequence) values (?,?,?)', (block, account, idx))
+        
+        for idx, block in enumerate(chain):            
+            sqlcur.execute('insert into block_info (block, account, chain_index, global_index) values (?,?,?,?)', 
+                (block, account, idx, block_to_global_index[block]))
 
         i += 1
         bar.update(i)
-
-    sqlcur.execute('commit')
-
+        
+    sqlcur.execute('commit')        
+        
     bar.finish()
 
 """

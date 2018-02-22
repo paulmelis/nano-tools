@@ -131,21 +131,23 @@ https://nano.org/en/explore/block/2D6A9F3B01D0BF5973D7482F314362F9BA59E9E8415989
 
 """
 
-def _check(nodes):
+def _check(edges):
     """Check consistency"""
     res = True
-    for src, dsts in nodes.items():
+    for src, dsts in edges.items():
         for dst in dsts:
-            if dst not in nodes:        
-                print('Warning: nodes[%d] contains %d, which is not in nodes[]' % (src, dst))
+            if dst not in edges:        
+                print('Warning: edges[%d] contains %d, which is not in edges[]' % (src, dst))
                 res = False
     return res
 
 
-def topological_sort(nodes):
+def topological_sort(edges):
     
     """
-    nodes: {<node>: [<target-node>, ...]}
+    edges: {<node>: [<target-node>, ...]}
+    
+    Returns a list of node IDs in (a) topological order.
     """
     
     MARK_UNVISITED = 0
@@ -153,7 +155,7 @@ def topological_sort(nodes):
     MARK_PERMANENT = 2  # Node and all its reachable children visited 
 
     status = {}   
-    for src in nodes.keys():
+    for src in edges.keys():
         status[src] = MARK_UNVISITED
         
     L = collections.deque()
@@ -177,7 +179,7 @@ def topological_sort(nodes):
                     continue
                     
                 if st == MARK_TEMPORARY:
-                    print(nodes[n])
+                    print(edges[n])
                     raise ValueError('Not a DAG (%d is marked as temporary)' % n)     
 
                 status[n] = MARK_TEMPORARY                    
@@ -188,7 +190,7 @@ def topological_sort(nodes):
                 stack.append(-n-1)
                 
                 # For all edges from n -> m, push a visit to m
-                stack.extend(nodes[n])
+                stack.extend(edges[n])
                 
             else:
                 # Second time for this node, all its children have been visited
@@ -211,19 +213,19 @@ def topological_sort(nodes):
     return list(L)
     
 
-def add_edge(nodes, src, dst):
+def add_edge(edges, src, dst):
     global edge_count
     
     try:
-        nodes[src].append(dst)
+        edges[src].append(dst)
     except KeyError:
-        nodes[src] = [dst]
+        edges[src] = [dst]
         
     edge_count += 1
     bar.update(edge_count)
     
     
-def generate_dependencies(cur):
+def generate_block_dependencies(cur, account_to_open_block, block_to_account):
     """
     Generate a set of edges that represent dependencies between blocks (and accounts)
     
@@ -232,35 +234,25 @@ def generate_dependencies(cur):
     - value = list of block IDs that depend on the key block
     """
 
-    global edge_count
+    global edge_count   # XXX yuck
     edge_count = 0
     
     print('Generating edges')
     global bar
     bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
-        
-    # Get open blocks and their accounts
-    
-    cur.execute('select id, account from blocks where type=?', ('open',))
-    
-    global block_to_type
-    block_to_type = {}
-
-    account_to_open_block = {}
-    for id, account in cur:
-        account_to_open_block[account] = id
-        
+                
     # Process all blocks
         
-    nodes = {}
+    edges = {}
     used_block_ids = set()        
     
     # XXX include representative?
-    cur.execute('select id, type, previous, next, source, destination, i.account from blocks b, block_info i where b.id=i.block')
+    cur.execute('select id, type, previous, next, source, destination from blocks')
+                
+    for id, type, previous, next, source, destination in cur:
         
-    for id, type, previous, next, source, destination, this_account in cur:
+        this_account = block_to_account[id]
         
-        block_to_type[id] = type
         used_block_ids.add(id)
         
         if type == 'open':
@@ -269,11 +261,11 @@ def generate_dependencies(cur):
                 # {other} <source> -> open {this}
                 if source != this_account:
                     # Only if not sending to the same account
-                    add_edge(nodes, source, id)
+                    add_edge(edges, source, id)
                     
             if previous is not None:
                 # {other} <previous> -> open {this}
-                add_edge(nodes, previous, id)
+                add_edge(edges, previous, id)
         
         elif type == 'send':
             assert destination is not None
@@ -290,40 +282,41 @@ def generate_dependencies(cur):
                 if destination != this_account:
                     # Unless sending to same account
                     # XXX Sending to the same account is legal, see 2D6A9F3B01D0BF5973D7482F314362F9BA59E9E8415989EF3D6F574BF73210A2
-                    add_edge(nodes, id, account_to_open_block[destination])
+                    add_edge(edges, id, account_to_open_block[destination])
             """
             
             # {this} send -> receive {other}
             # Handled in receive
             
             # {other} <previous> -> send {this}
-            add_edge(nodes, previous, id)
+            add_edge(edges, previous, id)
             
         elif type == 'receive':
             # {other} send -> receive {this}
-            add_edge(nodes, source, id)
+            add_edge(edges, source, id)
             
             # {other} <previous> -> receive {this}
-            add_edge(nodes, previous, id)
+            add_edge(edges, previous, id)
             
         elif type == 'change':
             # XXX representative
             
             if previous is not None:
                 # {other} <previous> -> change {this}
-                add_edge(nodes, previous, id)
+                add_edge(edges, previous, id)
                 
     for id in used_block_ids:
-        if id not in nodes:
-            nodes[id] = []
+        if id not in edges:
+            edges[id] = []
             
-    _check(nodes)
+    _check(edges)
     
     bar.finish()
             
-    return nodes
+    return edges
     
     
+"""
 def _traverse(f, visited, current):
     
     if current in visited:
@@ -336,7 +329,7 @@ def _traverse(f, visited, current):
     
     cont = True
     
-    for dst in nodes[current]:
+    for dst in edges[current]:
         f.write('%d -> %d;\n' % (current, dst))
         cont = cont and _traverse(f, visited, dst)
     
@@ -347,13 +340,13 @@ def traverse_dot(fname, n):
         f.write('digraph G {\n')
         _traverse(f, set(), n)
         f.write('}\n')
-    
-    
+"""    
+
 if __name__ == '__main__':
     
     import sys, time
     
-    nodes = {
+    edges = {
         'A': ['B', 'C', 'D'],
         'B': ['C'],
         'C': [],
@@ -362,15 +355,30 @@ if __name__ == '__main__':
     
     db = apsw.Connection(sys.argv[1], flags=apsw.SQLITE_OPEN_READONLY)
     cur = db.cursor()
+    
+    # Get open blocks and their accounts
+    
+    cur.execute('select id, account from blocks where type=?', ('open',))
+    
+    account_to_open_block = {}
+    for id, account in cur:
+        account_to_open_block[account] = id
 
-    nodes = generate_dependencies(cur)
+    # Get edges
+    
+    block_to_account = {}
+    cur.execute('select block, account from block_info')
+    for block, account in cur:
+        block_to_account[block] = account
+    
+    edges = generate_block_dependencies(cur, account_to_open_block, block_to_account)
 
     """
     print('Creating igraph graph')
     import igraph
         
     edges = []
-    for src, dsts in nodes.items():
+    for src, dsts in edges.items():
         for dst in dsts:
             edges.append((src, dst))
 
@@ -387,16 +395,16 @@ if __name__ == '__main__':
     #doh
     
     #for i in [0, 1, 2, 3, 4]:
-    #    print(i, nodes[i])
+    #    print(i, edges[i])
     #doh
     """
                 
-    print(len(nodes))
+    print(len(edges))
     
     print('Sorting')
     t0 = time.time()
     
-    order = topological_sort(nodes)
+    order = topological_sort(edges)
     
     t1 = time.time()
     print('done in %.3f s' % (t1-t0))
