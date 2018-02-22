@@ -218,9 +218,14 @@ class Block:
             cur.execute('select type from blocks where id=?', (self.id,))
             type = next(cur)[0]
         self.type = type
+
         self.hash_ = None
+        #self.previous_ = None
+        #self.next_ = None
+
         self.balance_ = None
         self.account_ = None
+        self.global_index_ = None
         self.chain_index_ = None
         self.destination_ = None
 
@@ -275,14 +280,14 @@ class Block:
         """
         if self.type in ['receive', 'open']:
             cur = self.sqldb.cursor()
-            try:
-                cur.execute('select source from blocks where id=?', (self.id,))
-                b = Block(self.db, next(cur)[0])
-                assert b.type == 'send'
-                return b
-            except StopIteration:
-                # No source block. E.g. block 991CF190094C00F0B68E2E5F75F6BEE95A2E0BD93CEAA4A6734DB9F19B728948 on genesis account
+            cur.execute('select source from blocks where id=?', (self.id,))
+            source = next(cur)[0]
+            if source is None:
+                # Genesis block has no source
                 return None
+            b = Block(self.db, source)
+            assert b.type == 'send'
+            return b
         elif self.type == 'send':
             cur = self.sqldb.cursor()
             try:
@@ -316,6 +321,16 @@ class Block:
         self.chain_index_ = idx
         return idx
 
+    def global_index(self):
+        """Index of this block in topological sort of all blocks (0 = genesis block)"""
+        if self.global_index_ is not None:
+            return self.global_index_
+        cur = self.sqldb.cursor()
+        cur.execute('select global_index from block_info where block=?', (self.id,))
+        idx = next(cur)[0]
+        self.global_index_ = idx
+        return idx
+
     def destination(self):
         """For a send block return destination account.
         For other block types return None"""
@@ -330,20 +345,29 @@ class Block:
         return self.destination_
 
     # XXX this needs more work
+    # http://localhost:7777/account/345155 shows no open balance
     def balance(self):
         """
         Return the account balance at this block in the chain
         """
-        if self.balance_ is not None:
-            return self.self.balance_
+        if self.balance_ is not None:       # XXX won't work with the values below
+            return self.balance_
             
         if self.type == 'send':
             cur = self.sqldb.cursor()
             cur.execute('select balance from blocks where id=?', (self.id,))
             self.balance_ = next(cur)[0]
-        elif self.type in ['receive', 'open']:
-            # XXX no no no!
-            self.balance_ = self.other().balance()
+        elif self.type == 'receive':
+            # XXX other can be None, should take positive negative into account
+            prev_balance = self.previous().balance()
+            other_amount = self.other().amount()
+            if prev_balance is not None and other_amount is not None:
+                return prev_balance + other_amount
+        elif self.type == 'open':
+            other_block = self.other()
+            if other_block is not None:
+                # Handle the Genesis block once again ;-)
+                return self.other().amount()
         else:
             # XXX
             return None
@@ -355,11 +379,20 @@ class Block:
     def amount(self):
         """For a send/receive/open block compute the amount being transfered"""
         if self.type not in ['open', 'send', 'receive']:
-            raise TypeError('Not a send/receive/open block')
+            #raise TypeError('Not a send/receive/open block')
+            return None
+            
         if self.type == 'send':
-            # Find
-            pass
-
+            prev = self.previous()
+            if prev.type == 'send':
+                return prev.balance() - self.balance()
+                
+        else:
+            other_block = self.other()
+            if other_block is not None:
+                return other_block.amount()
+                
+        return None
 
 if __name__ == '__main__':
 

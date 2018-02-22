@@ -49,7 +49,6 @@ create table blocks
     previous    integer,            -- [block]      Can be NULL for an open block
     next        integer,            -- [block]      "successor" in LMDB; called "next" to match "previous"
     
-
     -- Depending on block type
     work            text,           --              change, open, receive, send
     representative  integer,        -- [account]    change
@@ -121,7 +120,7 @@ create index blocks_type on blocks (type);
 
 create index block_info_account on block_info (account);
 create index block_info_chain_index on block_info (chain_index);
-create index block_info_chain_index on block_info (global_index);
+create index block_info_global_index on block_info (global_index);
 
 analyze;
 """

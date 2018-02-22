@@ -11,24 +11,44 @@
 {% if last_blocks | length == 0 %}
     <i>No transactions</i>
 {% else %}
-<table>
+<table cellpadding=2 cellspacing=2>
     <tr>
+        <th>Index
         <th>Type
+        <th>Amount
         <th>Balance
+        <th>Other
         <th>Hash
     </tr>
     {% for block in last_blocks %}
+        {% set type = block.type %}
+        {% set balance = block.balance() %}
+        {% set amount = block.amount() %}
+        {% set other = block.other() %}
         <tr>
+            <td align='right'>{{block.chain_index()}}
             <td align='left'><a href="/block/{{block.id}}">{{block.type}}</a>
-            <td>{#<a href="/block/{{block.id}}">{{block.balance()}}</a>#}
+            <td align='right'>{% if amount %}{{ "%.6f XRB" | format(amount) }}{% endif %}
+            <td align='right'><a href="/block/{{block.id}}">{% if balance %}{{"%.6f XRB" | format(balance)}}{% endif %}</a>
+            <td>
+            {% if type == "send" %}
+                TO <a href="/account/{{ block.destination().id }}">{{ block.destination().address }}</a>
+            {% elif type in ["open", "receive"] and other %}
+                FROM <a href="/account/{{ other.account().id }}">{{ other.account().address }}</a>
+            {% else %}
+            n/a
+            {% endif %}
             <td><a href="/block/{{block.id}}">{{block.hash()}}</a>
         </tr>
     {% endfor %}
+    {% if last_blocks[-1].chain_index() > 0 %}
     <tr>
         <td>...
         <td>...
         <td>...
+        <td>...
     </tr>
+    {% endif %}
 <table>
 {% endif %}
 

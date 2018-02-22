@@ -11,14 +11,19 @@
 <table>
     <tr>
         <th align='left'>Account 
-        <td>{% if account.name() %}{{account.name()}} ({% else %}account{%endif%}<a href="/account/{{account.id}}">{{account.address}}</a>{% if account.name() %}){%endif%}
+        <td>{% if account.name() %}{{account.name()}}({%endif%} <a href="/account/{{account.id}}">{{account.address}}</a>{% if account.name() %}){%endif%}
             <a class="button" href="/block/{{account.first_block().id}}">&larrb;</a>
             <a class="button" href="https://nano.org/en/explore/account/{{account.address}}">&nearr;</a>
     </tr>
     <tr>
         <th align='left'>Chain index
-        <td>{{sequence}}
+        <td>{{chain_index}}
     </tr>
+    <tr>
+        <th align='left'>Global index
+        <td>{{global_index}}
+    </tr>
+    <tr><td>&nbsp;</tr>
     {% if previous %}
     <tr>
         <th align='left'>&lt;&lt; Previous 

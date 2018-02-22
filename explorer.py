@@ -31,6 +31,10 @@ def close_connection(exception):
     db = getattr(g, '_database', None)
     if db is not None:
         db.close()
+        
+@app.route("/")
+def index():
+    return render_template('index.html')
 
 @app.route("/known_accounts")
 def known_accounts():
@@ -84,14 +88,16 @@ def block(id_or_hash):
         block = db.block_from_id(id)
     
     account = block.account()
-    sequence = block.sequence()
+    global_index = block.global_index()
+    chain_index = block.chain_index()
     previous = block.previous()
     next = block.next()
     
     return render_template('block.html', 
             block=block,
             account=account,
-            sequence=sequence,
+            global_index=global_index,
+            chain_index=chain_index,
             previous=previous,
             next=next,
             id=block.id)
