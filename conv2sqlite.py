@@ -366,7 +366,6 @@ def process_send_entry(sqlcur, key, value):
         (block_id, signature, work))
 
 
-# XXX should make db = sqlite explicit
 @click.command()
 @click.option('-d', '--dbfile', default=DEFAULT_SQLITE_DB, help='SQLite database file', show_default=True)
 def create(dbfile):
@@ -454,7 +453,7 @@ def create(dbfile):
 @click.command()
 @click.option('-d', '--dbfile', default=DEFAULT_SQLITE_DB, help='SQLite database file', show_default=True)
 def create_indices(dbfile):
-    """Create indices on SQL tables"""
+    """Create indices on SQL tables for faster querying"""
     sqldb = apsw.Connection(dbfile)
     sqlcur = sqldb.cursor()
     sqlcur.execute(DROP_INDICES)
@@ -463,7 +462,7 @@ def create_indices(dbfile):
 @click.command()
 @click.option('-d', '--dbfile', default=DEFAULT_SQLITE_DB, help='SQLite database file', show_default=True)
 def drop_indices(dbfile):
-    """Create indices on SQL tables for faster querying"""
+    """Drop indices"""
     sqldb = apsw.Connection(dbfile)
     sqlcur = sqldb.cursor()
     sqlcur.execute(DROP_INDICES)
@@ -575,7 +574,7 @@ def derive_block_info(dbfile):
     
     # Bootstrap with the Genesis account.
 
-    print('Storing info for blocks in a chain')
+    print('Storing per-block info')
 
     bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
     bar.update(len(blocks_to_process))

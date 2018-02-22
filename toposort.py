@@ -131,39 +131,6 @@ https://nano.org/en/explore/block/2D6A9F3B01D0BF5973D7482F314362F9BA59E9E8415989
 
 """
 
-MARK_UNVISITED = 0
-MARK_TEMPORARY = 1
-MARK_PERMANENT = 2
-
-#trace = False
-
-def visit(L, status, nodes, n):
-    
-    global trace
-    
-    #if n == 220451:
-    #    trace = True
-    #    
-    #if trace:
-    #    print('visit %d' % n)
-
-    if status[n] == MARK_PERMANENT:
-        return
-        
-    if status[n] == MARK_TEMPORARY:
-        print(nodes[n])
-        raise ValueError('Not a DAG (%d is marked as temporary)' % n)
-        
-    status[n] = MARK_TEMPORARY
-    
-    for m in nodes[n]:
-        # Edge from n -> m
-        visit(L, status, nodes, m)
-        
-    status[n] = MARK_PERMANENT
-    
-    L.appendleft(n)
-    
 def _check(nodes):
     """Check consistency"""
     res = True
@@ -181,15 +148,16 @@ def topological_sort(nodes):
     nodes: {<node>: [<target-node>, ...]}
     """
     
-    #global trace    
-        
-    L = collections.deque()
-    stack = []
+    MARK_UNVISITED = 0
+    MARK_TEMPORARY = 1  # Visited (but not all children visited yet)
+    MARK_PERMANENT = 2  # Node and all its reachable children visited 
 
-    # 0 = unvisisted, 1 = visited (but children not all visited yet), 2 = node and all its reachable children visited 
     status = {}   
     for src in nodes.keys():
         status[src] = MARK_UNVISITED
+        
+    L = collections.deque()
+    stack = []        
         
     # Push the Genesis block
     stack.append(0)    
@@ -210,22 +178,16 @@ def topological_sort(nodes):
                     
                 if st == MARK_TEMPORARY:
                     print(nodes[n])
-                    raise ValueError('Not a DAG (%d is marked as temporary)' % n)            
+                    raise ValueError('Not a DAG (%d is marked as temporary)' % n)     
+
+                status[n] = MARK_TEMPORARY                    
                 
                 # Push the current node again, but as a negative value so
-                # we know with the corresponding pop that all children have
+                # we know with the corresponding pop later that all children have
                 # been visited.
                 stack.append(-n-1)
                 
-                #if n == 220451:
-                #    trace = True
-                #    
-                #if trace:
-                #    print('visit %d' % n)
-                    
-                status[n] = MARK_TEMPORARY
-                
-                # For all edges from n -> m, visit m next
+                # For all edges from n -> m, push a visit to m
                 stack.extend(nodes[n])
                 
             else:
@@ -251,6 +213,7 @@ def topological_sort(nodes):
 
 def add_edge(nodes, src, dst):
     global edge_count
+    
     try:
         nodes[src].append(dst)
     except KeyError:
@@ -260,7 +223,7 @@ def add_edge(nodes, src, dst):
     bar.update(edge_count)
     
     
-def generate_dependencies():
+def generate_dependencies(cur):
     """
     Generate a set of edges that represent dependencies between blocks (and accounts)
     
@@ -275,9 +238,8 @@ def generate_dependencies():
     print('Generating edges')
     global bar
     bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
-    
-    db = apsw.Connection(sys.argv[1], flags=apsw.SQLITE_OPEN_READONLY)
-    cur = db.cursor()
+        
+    # Get open blocks and their accounts
     
     cur.execute('select id, account from blocks where type=?', ('open',))
     
@@ -288,6 +250,8 @@ def generate_dependencies():
     for id, account in cur:
         account_to_open_block[account] = id
         
+    # Process all blocks
+        
     nodes = {}
     used_block_ids = set()        
     
@@ -296,19 +260,17 @@ def generate_dependencies():
         
     for id, type, previous, next, source, destination, this_account in cur:
         
-        #if id in [220451, 212959]:
-        #    print(id, type, previous, next, source, destination, this_account)
-            
         block_to_type[id] = type
         used_block_ids.add(id)
         
         if type == 'open':
             if source is not None:
-                # Only genesis block has no source, hence the check
+                # Genesis block (only) has no source, so need the check
                 # {other} <source> -> open {this}
                 if source != this_account:
-                    # Unless sending to same account    
+                    # Only if not sending to the same account
                     add_edge(nodes, source, id)
+                    
             if previous is not None:
                 # {other} <previous> -> open {this}
                 add_edge(nodes, previous, id)
@@ -318,7 +280,9 @@ def generate_dependencies():
             """
             # XXX we can't make a send block always come after the open
             # block for the account it sends to, as the send may (indirectly) transfer
-            # to the current account and therefore open block. In which case there would be a cycle.
+            # back to the current account and therefore open block. In which case there would be a cycle.
+            # The exception is the send block that an open block directly references (in the source field).
+            # That case is handled under 'open' above.
             # E.g. cycle starting at 288611994071C94E9881958A29D678974EA26DDD3F75B7D069F8AF82B999FBA8
             # {this} send -> destination account open {other} 
             # Make sure send appears before destination account is opened
@@ -359,6 +323,7 @@ def generate_dependencies():
             
     return nodes
     
+    
 def _traverse(f, visited, current):
     
     if current in visited:
@@ -376,8 +341,7 @@ def _traverse(f, visited, current):
         cont = cont and _traverse(f, visited, dst)
     
     return cont
-    
-    
+       
 def traverse_dot(fname, n):
     with open(fname, 'wt') as f:
         f.write('digraph G {\n')
@@ -396,7 +360,10 @@ if __name__ == '__main__':
         'D': ['B'],
     }
     
-    nodes = generate_dependencies()
+    db = apsw.Connection(sys.argv[1], flags=apsw.SQLITE_OPEN_READONLY)
+    cur = db.cursor()
+
+    nodes = generate_dependencies(cur)
 
     """
     print('Creating igraph graph')
