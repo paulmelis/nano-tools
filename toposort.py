@@ -134,17 +134,17 @@ MARK_UNVISITED = 0
 MARK_TEMPORARY = 1
 MARK_PERMANENT = 2
 
-trace = False
+#trace = False
 
 def visit(L, status, nodes, n):
     
     global trace
     
-    if n == 220451:
-        trace = True
-        
-    if trace:
-        print('visit %d' % n)
+    #if n == 220451:
+    #    trace = True
+    #    
+    #if trace:
+    #    print('visit %d' % n)
 
     if status[n] == MARK_PERMANENT:
         return
@@ -163,63 +163,87 @@ def visit(L, status, nodes, n):
     
     L.appendleft(n)
     
-    
+def _check(nodes):
+    """Check consistency"""
+    res = True
+    for src, dsts in nodes.items():
+        for dst in dsts:
+            if dst not in nodes:        
+                print('Warning: nodes[%d] contains %d, which is not in nodes[]' % (src, dst))
+                res = False
+    return res
+
+
 def topological_sort(nodes):
     
     """
     nodes: {<node>: [<target-node>, ...]}
     """
     
-    # Check consistency
-    for src, dsts in nodes.items():
-        for dst in dsts:
-            if dst not in nodes:
-                print('Warning: nodes[%d] contains %d, which is not in nodes[]' % (src, dst))
+    #global trace    
         
     L = collections.deque()
     stack = []
 
-    # 0 = unvisisted, 1 = visited, but children not all visited yet, 2 = node and all its reachable children visited 
+    # 0 = unvisisted, 1 = visited (but children not all visited yet), 2 = node and all its reachable children visited 
     status = {}   
     for src in nodes.keys():
         status[src] = MARK_UNVISITED
         
     # Push the Genesis block
-    stack.append(0)
+    stack.append(0)    
     
+    # Uses nice trick from http://sergebg.blogspot.nl/2014/11/non-recursive-dfs-topological-sort.html
     while True:
         
-        n = stack.pop()
-        
-        global trace
-        
-        if n == 220451:
-            trace = True
-            
-        if trace:
-            print('visit %d' % n)
-
-        if status[n] == MARK_PERMANENT:
-            continue
-            
-        if status[n] == MARK_TEMPORARY:
-            print(nodes[n])
-            raise ValueError('Not a DAG (%d is marked as temporary)' % n)
-            
-        status[n] = MARK_TEMPORARY
-        
-        for m in nodes[n]:
-            # Edge from n -> m
-            stack.append(m)
-            visit(L, status, nodes, m)
-            
-        status[n] = MARK_PERMANENT
-        
-        L.appendleft(n)
-        
-        
-        
-    visit(L, status, nodes, 0)
+        try:            
+            n = stack.pop()
+                    
+            if n >= 0:
+                # First time we visit this node
+                
+                st = status[n]
+                
+                if st == MARK_PERMANENT:
+                    continue
+                    
+                if st == MARK_TEMPORARY:
+                    print(nodes[n])
+                    raise ValueError('Not a DAG (%d is marked as temporary)' % n)            
+                
+                # Push the current node again, but as a negative value so
+                # we know with the corresponding pop that all children have
+                # been visited.
+                stack.append(-n-1)
+                
+                #if n == 220451:
+                #    trace = True
+                #    
+                #if trace:
+                #    print('visit %d' % n)
+                    
+                status[n] = MARK_TEMPORARY
+                
+                # For all edges from n -> m, visit m next
+                stack.extend(nodes[n])
+                
+            else:
+                # Second time for this node, all its children have been visited
+                n = -n-1
+                assert status[n] == MARK_TEMPORARY
+                status[n] = MARK_PERMANENT
+                
+                L.appendleft(n)
+                
+        except IndexError:
+            # Stack emtpy, all done!
+            break
+                        
+    # Check that we visited all nodes (which must be true as 
+    # everything should be reachable from the genesis block)
+    for n in status:
+        if status[n] != MARK_PERMANENT:
+            print('%d: status %d' % (n, status[n]))
         
     return list(L)
     
@@ -252,27 +276,28 @@ def generate_dependencies():
     
     for id, type, previous, next, source, destination, this_account in cur:
         
-        if id in [220451, 212959]:
-            print(id, type, previous, next, source, destination, this_account)
+        #if id in [220451, 212959]:
+        #    print(id, type, previous, next, source, destination, this_account)
             
         block_to_type[id] = type
         used_block_ids.add(id)
         
         if type == 'open':
             if source is not None:
-                # {other} source -> open {this}
+                # Only genesis block has no source, hence the check
+                # {other} <source> -> open {this}
                 if source != this_account:
                     # Unless sending to same account    
                     add_edge(source, id)
             if previous is not None:
-                # {other} previous -> open {this}
+                # {other} <previous> -> open {this}
                 add_edge(previous, id)
         
         elif type == 'send':
             assert destination is not None
             """
-            # XXX we can't make an open block always come after the send
-            # block whole transfer it receives, as the send may (indirectly) transfer
+            # XXX we can't make a send block always come after the open
+            # block for the account it sends to, as the send may (indirectly) transfer
             # to the current account and therefore open block. In which case there would be a cycle.
             # E.g. cycle starting at 288611994071C94E9881958A29D678974EA26DDD3F75B7D069F8AF82B999FBA8
             # {this} send -> destination account open {other} 
@@ -287,26 +312,28 @@ def generate_dependencies():
             # {this} send -> receive {other}
             # Handled in receive
             
-            # {other} previous -> send {this}
+            # {other} <previous> -> send {this}
             add_edge(previous, id)
             
         elif type == 'receive':
             # {other} send -> receive {this}
             add_edge(source, id)
             
-            # {other} previous -> receive {this}
+            # {other} <previous> -> receive {this}
             add_edge(previous, id)
             
         elif type == 'change':
             # XXX representative
             
             if previous is not None:
-                # {other} previous -> change {this}
+                # {other} <previous> -> change {this}
                 add_edge(previous, id)
                 
     for id in used_block_ids:
         if id not in nodes:
             nodes[id] = []
+            
+    _check(nodes)
             
     return nodes
     
@@ -338,7 +365,7 @@ def traverse_dot(fname, n):
     
 if __name__ == '__main__':
     
-    import sys
+    import sys, time
     
     nodes = {
         'A': ['B', 'C', 'D'],
@@ -350,6 +377,7 @@ if __name__ == '__main__':
     print('Generating edges')
     nodes = generate_dependencies()
 
+    """
     print('Creating igraph graph')
     import igraph
         
@@ -373,10 +401,15 @@ if __name__ == '__main__':
     #for i in [0, 1, 2, 3, 4]:
     #    print(i, nodes[i])
     #doh
-    
+    """
                 
     print(len(nodes))
     
     print('Sorting')
+    t0 = time.time()
+    
     order = topological_sort(nodes)
+    
+    t1 = time.time()
+    print('done in %.3f s' % (t1-t0))
     
