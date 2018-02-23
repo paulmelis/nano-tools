@@ -40,14 +40,13 @@ RAIBLOCKS_LMDB_DB = os.path.join(os.environ['HOME'], DATADIR, DBPREFIX)
 
 DEFAULT_SQLITE_DB = 'nano.db'
 
-# XXX store signature and work in separate table
 SCHEMA = """
 begin;
 
 drop table if exists accounts;
 drop table if exists blocks;
-drop table if exists block_info;
 drop table if exists block_validation;
+drop table if exists block_info;
 
 create table accounts
 (
@@ -483,6 +482,7 @@ def create(dbfile):
 @click.option('-d', '--dbfile', default=DEFAULT_SQLITE_DB, help='SQLite database file', show_default=True)
 def create_indices(dbfile):
     """Create indices on SQL tables for faster querying"""
+    print('Creating indices & running analyze')
     sqldb = apsw.Connection(dbfile)
     sqlcur = sqldb.cursor()
     sqlcur.execute(DROP_INDICES)
@@ -492,6 +492,7 @@ def create_indices(dbfile):
 @click.option('-d', '--dbfile', default=DEFAULT_SQLITE_DB, help='SQLite database file', show_default=True)
 def drop_indices(dbfile):
     """Drop indices"""
+    print('Dropping indices')
     sqldb = apsw.Connection(dbfile)
     sqlcur = sqldb.cursor()
     sqlcur.execute(DROP_INDICES)
@@ -500,6 +501,7 @@ def drop_indices(dbfile):
 @click.option('-d', '--dbfile', default=DEFAULT_SQLITE_DB, help='SQLite database file', show_default=True)
 def analyze(dbfile):
     """Let SQLite analyze the tables for improved query performance"""
+    print('Running analyze')
     sqldb = apsw.Connection(dbfile)
     sqlcur = sqldb.cursor()
     sqlcur.execute('analyze')
@@ -509,6 +511,8 @@ def analyze(dbfile):
 def derive_block_info(dbfile):
     """Store for each block to which account chain (account id) it belongs"""
 
+    print('Deriving per-block info')
+    
     sqldb = apsw.Connection(dbfile)
     sqlcur = sqldb.cursor()
     sqlcur.execute('delete from block_info')    
@@ -625,7 +629,7 @@ def derive_block_info(dbfile):
     # by send/receive/open blocks.
     # Bootstrap with the Genesis account.
 
-    bar = progressbar.ProgressBar('Storing per-block info')
+    bar = progressbar.ProgressBar('Storing per-block info for each account')
     bar.update(len(blocks_to_process))
     i = 0
 
@@ -646,21 +650,20 @@ def derive_block_info(dbfile):
         
     bar.finish()
 
-"""
 @click.command()
 @click.option('-d', '--dbfile', default=DEFAULT_SQLITE_DB, help='SQLite database file', show_default=True)
-def convert(dbfile):
+@click.pass_context
+def convert(ctx, dbfile):
     "Convert LMDB database to SQLite (all steps)"
-    create(dbfile)
-    derive_block_info(dbfile)
-    create_indices(dbfile)
-"""
+    ctx.forward(create)
+    ctx.forward(derive_block_info)
+    ctx.forward(create_indices)
 
 @click.group()
 def cli():
     pass
 
-#cli.add_command(convert)
+cli.add_command(convert)
 cli.add_command(create)
 cli.add_command(derive_block_info)
 cli.add_command(create_indices)

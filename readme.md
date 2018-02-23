@@ -23,15 +23,14 @@ Files
   - Main script to convert the LMDB-based Nano/RaiBlocks database to a SQLite
     database
   - Usage:
-    1. Close the official Nano wallet/node software, so nothing else is
-       accessing the LMDB database at `~/RaiBlocks`.
-    2. `$ ./conv2sqlite.py create`           
-    3. `$ ./conv2sqlite.py derive_block_info`
-    4. `$ ./conv2sqlite.py create_indices`
-    5. Steps 2-4 will probably take a couple of minutes for a fully synced
-       Nano wallet/node, also depending on the speed of the disk being written
-       to.
-    6. You should now have a SQLite database file `nano.db`
+    1. **Close the official Nano wallet/node software, so nothing else is
+         accessing the LMDB database (which by default is at `~/RaiBlocks`)**.
+    2. `$ ./conv2sqlite.py convert`           
+       This will create a SQLite database called `nano.db` in the current
+       directory. This step will take a couple of minutes for a fully 
+       synced Nano wallet/node, also depending on the speed of the disk 
+       being written to.
+    3. You should now have a SQLite database file `nano.db`
   - Note: the SQLite database is by default written in the current directory.
     You can change the output file with the `-d` option.
   - If you have enough free memory (say 4-8 GBs) you can
@@ -39,13 +38,14 @@ Files
     faster generation and query performance. Copy it to a persistent disk later
     if needed.
 * `nanodb.py`
-  - An Python module that provides an object-oriented API to the SQLite database
-    created by `conv2sqlite.py`
+  - A Python module that provides an object-oriented API to the SQLite database
+    created by `conv2sqlite.py`. This allows easy querying and navigation
+    of blocks, accounts and relations between them.
 * `explorer.py`
   - A web-based account and block explorer similar to https://nano.org/en/explore/.
-    Is it not nearly as good-looking, though, and lacks certain features. It was
-    added mostly to inspect the generated SQLite DB, but can also be used to browse
-    and explore the Nano block-lattice.
+    It lacks certain features and is available mostly to inspect the 
+    generated SQLite DB, but can also be used to browse and explore the 
+    Nano block-lattice.
   - Usage:
     1. `$ ./explorer.py nano.db`
     2. Browse to http://localhost:7777/known_accounts
@@ -67,7 +67,7 @@ License
 See the LICENSE file in this source distribution.
 
 The included Bootstrap, jQuery and Popper sources (included under
-the static directory) have their own license.
+the 'static' directory) have their own license.
 
 
 Bug reports, feature requests, etc
@@ -118,5 +118,5 @@ FAQ
     which isn't SQLite-specific and somewhat quirky to use.
     The sqlite3 module (depending on your Python version) also has issues with
     transactions in certain scenarios. All in all, APSW is much more pleasant
-    to work with. As it is available in many distros as package or can be
+    to work with. As it is available in many distros as a package or can be
     installed using pip adding it to your system shouldn't be too hard.
