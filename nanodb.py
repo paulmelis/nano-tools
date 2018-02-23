@@ -213,6 +213,8 @@ class Account:
         if limit is not None:
             q += ' limit ?'
             v.append(limit)
+            
+        print(q, v)
 
         res = []
         cur = self.db.cursor()

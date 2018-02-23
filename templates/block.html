@@ -74,7 +74,7 @@
     {% set destname = destination.address | account_name %}
     <tr>
         <td>Destination
-        <td><a href="/account/{{destination.id}}">{% if destname %}{{destname}} ({{destination.address}}){% else %}{{destination.address}}{% endif %}</a> 
+        <td>{{ other.account() | account_link }} {{ nano_org_account(other.account()) }}
     </tr>
     <tr>
         <td>Other

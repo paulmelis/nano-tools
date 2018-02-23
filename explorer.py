@@ -119,6 +119,14 @@ def known_accounts():
 # does it fetch the whole block chain of 78000 block?
 # hmm, kucoin xrb_1niabkx3gbxit5j5yyqcpas71dkffggbr6zpd3heui8rpoocm5xqbdwq44oh is much faster and
 # has more blocks (103k)!
+# it's not the chain() call, probably resolving all the amounts and balances.
+# will get better when we compute this in preprocessing
+# YYY add list of unpocketed sends to the account
+
+# balance still incorrect? 
+# http://localhost:7777/account/xrb_3jwrszth46rk1mu7rmb4rhm54us8yg1gw3ipodftqtikf5yqdyr7471nsg1k
+# http://localhost:7777/block/1977214 (1D54C237...144976F2)
+# gives exception
 @app.route('/account/<id_or_address>')
 @app.route('/account/<id_or_address>/<int:block_limit>')
 def account(id_or_address, block_limit=100):
