@@ -35,6 +35,7 @@ KNOWN_ACCOUNTS = {
 GENESIS_ACCOUNT         = 'xrb_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3'
 GENESIS_OPEN_BLOCK_HASH = '991CF190094C00F0B68E2E5F75F6BEE95A2E0BD93CEAA4A6734DB9F19B728948'
 GENESIS_PUBLIC_KEY      = 'E89208DD038FBB269987689621D52292AE9C35941A7484756ECCED92A65093BA'
+GENESIS_AMOUNT          = 340282366.920939
 
 assert KNOWN_ACCOUNTS[GENESIS_ACCOUNT] == 'Genesis'
 
@@ -358,16 +359,21 @@ class Block:
             cur.execute('select balance from blocks where id=?', (self.id,))
             self.balance_ = next(cur)[0]
         elif self.type == 'receive':
-            # XXX other can be None, should take positive negative into account
+            # XXX other can be None
             prev_balance = self.previous().balance()
             other_amount = self.other().amount()
             if prev_balance is not None and other_amount is not None:
                 return prev_balance + other_amount
         elif self.type == 'open':
+            
+            if self.id == 0:
+                # Genesis block
+                return GENESIS_AMOUNT
+            
             other_block = self.other()
-            if other_block is not None:
-                # Handle the Genesis block once again ;-)
-                return self.other().amount()
+            assert other_block is not None
+            
+            return self.other().amount()
         else:
             # XXX
             return None
@@ -384,10 +390,19 @@ class Block:
             
         if self.type == 'send':
             prev = self.previous()
-            if prev.type == 'send':
-                return prev.balance() - self.balance()
+            return prev.balance() - self.balance()
+            
+        elif self.type == 'receive':
+            prev = self.previous()
+            return prev.balance() + self.balance()
                 
-        else:
+        else:   
+            # open block
+            
+            if self.id == 0:
+                # Genesis block
+                return GENESIS_AMOUNT
+                
             other_block = self.other()
             if other_block is not None:
                 return other_block.amount()

@@ -1,6 +1,7 @@
 #!/usr/bin/env python2
 import sys
 from flask import Flask, g, jsonify, render_template
+from jinja2 import evalcontextfilter, Markup
 
 from nanodb import NanoDatabase, KNOWN_ACCOUNTS
 
@@ -25,7 +26,33 @@ def account_name(address):
         return KNOWN_ACCOUNTS[address]
     else:
         return ''
+        
+@app.template_filter('account_link')     
+@evalcontextfilter
+def account_link(eval_ctx, account):
+    name = account.name()
+    if name is not None:
+        s = '<a href="/account/%d">%s</a>' % (account.id, name)
+    else:
+        s = '<a href="/account/%d">%s</a>' % (account.id, account.address)
+    if eval_ctx.autoescape:
+        s = Markup(s)
+    return s
+    
+@app.template_filter('format_amount3')            
+def format_amount3(value):
+    return "{:,.3f}".format(value)
 
+@app.template_filter('format_amount6')            
+def format_amount6(value):
+    return "{:,.6f}".format(value)
+
+@app.template_filter('format_hash')            
+def format_hash(value):
+    return value[:8] + '...' + value[-8:]
+    
+    
+    
 @app.teardown_appcontext
 def close_connection(exception):
     db = getattr(g, '_database', None)

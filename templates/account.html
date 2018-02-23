@@ -17,7 +17,7 @@
         <th>Type
         <th>Amount
         <th>Balance
-        <th>Other
+        <th colspan="2">Other
         <th>Hash
     </tr>
     {% for block in last_blocks %}
@@ -28,17 +28,25 @@
         <tr>
             <td align='right'>{{block.chain_index()}}
             <td align='left'><a href="/block/{{block.id}}">{{block.type}}</a>
-            <td align='right'>{% if amount %}{{ "%.6f XRB" | format(amount) }}{% endif %}
-            <td align='right'><a href="/block/{{block.id}}">{% if balance %}{{"%.6f XRB" | format(balance)}}{% endif %}</a>
-            <td>
-            {% if type == "send" %}
-                TO <a href="/account/{{ block.destination().id }}">{{ block.destination().address }}</a>
-            {% elif type in ["open", "receive"] and other %}
-                FROM <a href="/account/{{ other.account().id }}">{{ other.account().address }}</a>
-            {% else %}
-            n/a
+            <td align='right'>{% if amount %}
+                {% if type == "send" %}
+                    <font style="color: #ff0000">{{ amount | format_amount3 }} XRB</font>
+                {% else %}
+                    <font style="color: #00c000">{{ amount | format_amount3 }} XRB</font>
+                {% endif %}
             {% endif %}
-            <td><a href="/block/{{block.id}}">{{block.hash()}}</a>
+            <td align='right'><a href="/block/{{block.id}}">{% if balance %}{{ balance | format_amount3 }}{% endif %}</a>
+            {% if type == "send" %}
+                <td>TO
+                <td><a href="/account/{{ block.destination().id }}">{{ block.destination() | account_link }}</a>
+            {% elif type in ["open", "receive"] and other %}
+                <td>FROM
+                <td><a href="/account/{{ other.account().id }}">{{ other.account() | account_link }}</a>
+            {% else %}
+                <td>&nbsp;
+                <td>n/a
+            {% endif %}
+            <td><a href="/block/{{block.id}}">{{ block.hash() | format_hash }}</a>
         </tr>
     {% endfor %}
     {% if last_blocks[-1].chain_index() > 0 %}
