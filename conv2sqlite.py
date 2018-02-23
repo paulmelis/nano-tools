@@ -438,8 +438,7 @@ def create(dbfile):
             cur = tx.cursor(subdb)
             cur.first()
 
-            print('Processing "%s" blocks' % subdbname)
-            bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
+            bar = progressbar.ProgressBar('Processing "%s" blocks' % subdbname)
             i = 0
 
             p = processor_functions[subdbname]
@@ -459,8 +458,7 @@ def create(dbfile):
 
     # Store accounts
 
-    print('Storing account info')
-    bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
+    bar = progressbar.ProgressBar('Storing account info')
     i = 0
 
     sqlcur.execute('begin')
@@ -558,8 +556,7 @@ def derive_block_info(dbfile):
     for id in open_block_to_account.keys():
         account_chains[id] = [id]
 
-    print('Reconstructing account chains')
-    bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
+    bar = progressbar.ProgressBar('Reconstructing account chains')
     bar.update(len(blocks_to_process))
 
     while len(blocks_to_process) > 0:
@@ -628,9 +625,7 @@ def derive_block_info(dbfile):
     # by send/receive/open blocks.
     # Bootstrap with the Genesis account.
 
-    print('Storing per-block info')
-
-    bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
+    bar = progressbar.ProgressBar('Storing per-block info')
     bar.update(len(blocks_to_process))
     i = 0
 

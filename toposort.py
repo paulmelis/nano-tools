@@ -262,9 +262,8 @@ def generate_block_dependencies(cur, account_to_open_block, block_to_account):
     global edge_count   # XXX yuck
     edge_count = 0
     
-    print('Generating edges')
     global bar
-    bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
+    bar = progressbar.ProgressBar('Generating edges')
                 
     # Process all blocks
         

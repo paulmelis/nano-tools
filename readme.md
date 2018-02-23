@@ -58,7 +58,6 @@ Python dependencies:
   - [lmdb](https://pypi.python.org/pypi/lmdb) (conv2sqlite.py, dump_wallet_db.py)
   - [numpy](http://www.numpy.org/) (dump_wallet_db.py only)
   - [click](https://pypi.python.org/pypi/click) (conv2sqlite.py only)
-  - [progressbar](https://pypi.python.org/pypi/progressbar) (conv2sqlite.py only)
   - [Flask](http://flask.pocoo.org/) (explorer.py only)
 
 
@@ -67,8 +66,8 @@ License
 
 See the LICENSE file in this source distribution.
 
-The included Bootstrap, jQuery and Popper sources (most of the
-Javascript and CSS files under static/) have their own license.
+The included Bootstrap, jQuery and Popper sources (included under
+the static directory) have their own license.
 
 
 Bug reports, feature requests, etc
@@ -95,7 +94,7 @@ FAQ
   1. It is safer to work on a separate copy of the wallet/node database, in case
      anything goes wrong when working with the data.
   2. SQL is a very powerful language for querying. Also, LMDB does not
-     offer indexing of the data, leading to potentially slow queries.
+     offer automatic indexing of the data, leading to potentially slow queries.
   3. An LMDB database only contains key-value pairs, that need to be decoded
      into separate fields. In contrast, a SQL table contains columns, one
      per field, for easier querying.
