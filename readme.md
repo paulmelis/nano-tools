@@ -67,6 +67,9 @@ License
 
 See the LICENSE file in this source distribution.
 
+The included Bootstrap, jQuery and Popper sources (most of the
+Javascript and CSS files under static/) have their own license.
+
 
 Bug reports, feature requests, etc
 ==================================
