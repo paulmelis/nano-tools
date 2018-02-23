@@ -1,19 +1,24 @@
-<html>
-<head>
+{% extends "base.html" %}
+
+{% block head %}
     <title>{{block.hash()}}</title>
-    <link rel=stylesheet type=text/css href="{{ url_for('static', filename='css/main.css') }}">
-</head>
-<body>
+{% endblock %}
+
+{% block body %}
 
 
-<h2>Block {{block.hash()}} <a class="button" href="https://nano.org/en/explore/block/{{block.hash()}}">&nearr;</a></h2>
+<div class='container'>
+    <div class='page-header'>
+        <h4>Block {{ block.hash() }} {{ nano_org_block(block) }}</h4>
+    </div>
 
-<table>
+<table class='table table-sm'>
+<tbody>
     <tr>
         <th align='left'>Account 
-        <td>{% if account.name() %}{{account.name()}} ({%endif%}<a href="/account/{{account.id}}">{{account.address}}</a>{% if account.name() %}){%endif%}
-            <a class="button" href="/block/{{account.first_block().id}}">&larrb;</a>
-            <a class="button" href="https://nano.org/en/explore/account/{{account.address}}">&nearr;</a>
+        <td><a class="button" href="/block/{{account.first_block().id}}">&larrb;</a>
+            {{ account | account_link }}
+            {{ nano_org_account(account) }}
     </tr>
     <tr>
         <th align='left'>Chain index
@@ -23,24 +28,25 @@
         <th align='left'>Global index
         <td>{{global_index}}
     </tr>
-    <tr><td>&nbsp;</tr>
     {% if previous %}
     <tr>
         <th align='left'>&lt;&lt; Previous 
-        <td><a class="button" href="/block/{{previous.id}}">{{previous.hash()}}</a>
+        <td><a href="/block/{{previous.id}}">{{ previous.hash() }}</a>{{ nano_org_block(previous) }}
     </tr>
     {% endif %}
     {% if next %}
     <tr>
         <th align='left'>Next &gt;&gt;
-        <td><a class="button" href="/block/{{next.id}}">{{next.hash()}}</a>
+        <td><a href="/block/{{next.id}}">{{ next.hash() }}</a>{{ nano_org_block(next) }}
     </tr>
     {% endif %}
+</tbody>
 </table>
+</div>
 
+<div class='container'>
 
-<p>
-<table>
+<table class='table table-striped table-sm'>
 <tr>
     <th>Field
     <th>Value
@@ -73,7 +79,7 @@
     <tr>
         <td>Other
         {% if other %}
-        <td><a href="/block/{{other.id}}">{{other.hash()}}</a>
+        <td><a href="/block/{{other.id}}">{{ other.hash() }}</a>
         {% endif %}
     </tr>
     <tr>
@@ -87,5 +93,6 @@
 {% endif %}
 <table>
 
-</body>
-</html>
+</div>
+
+{% endblock %}

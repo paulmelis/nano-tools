@@ -7,18 +7,13 @@ from nanodb import NanoDatabase, KNOWN_ACCOUNTS
 
 HOST = '127.0.0.1'
 PORT = 7777
-TRACEDB = True
+TRACEDB = False
 
-DBFILE = sys.argv[1]
-
-def get_db():
-    db = getattr(g, '_database', None)
-    if db is None:
-        db = g._database = NanoDatabase(DBFILE, trace=TRACEDB)
-    return db
-    
+DBFILE = sys.argv[1]    
 
 app = Flask(__name__)
+
+# Custom filters
 
 @app.template_filter('account_name')
 def account_name(address):
@@ -29,12 +24,17 @@ def account_name(address):
         
 @app.template_filter('account_link')     
 @evalcontextfilter
-def account_link(eval_ctx, account):
+def account_link(eval_ctx, account, show_address=True):
     name = account.name()
+    s = '<a href="/account/%d">' % account.id
     if name is not None:
-        s = '<a href="/account/%d">%s</a>' % (account.id, name)
+        if show_address:
+            s += '%s (%s)' % (name, account.address)
+        else:
+            s += name
     else:
-        s = '<a href="/account/%d">%s</a>' % (account.id, account.address)
+        s += account.address
+    s += '</a>'
     if eval_ctx.autoescape:
         s = Markup(s)
     return s
@@ -50,8 +50,14 @@ def format_amount6(value):
 @app.template_filter('format_hash')            
 def format_hash(value):
     return value[:8] + '...' + value[-8:]
+
+# Database stuff    
     
-    
+def get_db():
+    db = getattr(g, '_database', None)
+    if db is None:
+        db = g._database = NanoDatabase(DBFILE, trace=TRACEDB)
+    return db
     
 @app.teardown_appcontext
 def close_connection(exception):
@@ -59,6 +65,8 @@ def close_connection(exception):
     if db is not None:
         db.close()
         
+# Pages
+    
 @app.route("/")
 def index():
     return render_template('index.html')
@@ -82,6 +90,10 @@ def known_accounts():
         
     return render_template('known_accounts.html', accounts=res)
 
+# XXX why is xrb_3jwrszth46rk1mu7rmb4rhm54us8yg1gw3ipodftqtikf5yqdyr7471nsg1k (binance) so slow ?
+# does it fetch the whole block chain of 78000 block?
+# hmm, kucoin xrb_1niabkx3gbxit5j5yyqcpas71dkffggbr6zpd3heui8rpoocm5xqbdwq44oh is much faster and
+# has more blocks (103k)!
 @app.route('/account/<id_or_address>')
 @app.route('/account/<id_or_address>/<int:block_limit>')
 def account(id_or_address, block_limit=100):

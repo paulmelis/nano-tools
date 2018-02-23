@@ -56,7 +56,13 @@ class NanoDatabase:
 
     def account_from_id(self, id):
         assert isinstance(id, int)
-        return Account(self, id)
+        cur = self.sqldb.cursor()
+        try:
+            cur.execute('select address from accounts where id=?', (id,))
+            row = next(cur)
+            return Account(self, id, row[0])
+        except StopIteration:
+            raise ValueError('Unknown account')
 
     def account_from_address(self, addr):
         cur = self.sqldb.cursor()
@@ -300,8 +306,11 @@ class Block:
             except StopIteration:
                 # No destination block, i.e. not pocketed
                 return None
+        elif self.type == 'change':
+            # XXX Return account changed to?
+            return None
 
-        raise ValueError('Block type should be send, receive or open')
+        raise ValueError('Block type should be send, receive or open (got: %s)' % self.type)
 
     def account(self):
         if self.account_ is not None:
@@ -346,7 +355,6 @@ class Block:
         return self.destination_
 
     # XXX this needs more work
-    # http://localhost:7777/account/345155 shows no open balance
     def balance(self):
         """
         Return the account balance at this block in the chain
@@ -374,31 +382,26 @@ class Block:
             assert other_block is not None
             
             return self.other().amount()
-        else:
-            # XXX
-            return None
+        elif self.type == 'change':
+            return self.previous().balance()
 
         return self.balance_
 
     # XXX add balance_raw()
 
     def amount(self):
-        """For a send/receive/open block compute the amount being transfered"""
-        if self.type not in ['open', 'send', 'receive']:
-            #raise TypeError('Not a send/receive/open block')
-            return None
+        """
+        For a send/receive/open block compute the amount being transfered.
+        For other block types return None.
+        """
             
         if self.type == 'send':
-            prev = self.previous()
-            return prev.balance() - self.balance()
+            return self.previous().balance() - self.balance()
             
         elif self.type == 'receive':
-            prev = self.previous()
-            return prev.balance() + self.balance()
+            return self.other().amount()
                 
-        else:   
-            # open block
-            
+        elif self.type == 'open':   
             if self.id == 0:
                 # Genesis block
                 return GENESIS_AMOUNT
