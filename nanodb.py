@@ -265,6 +265,8 @@ class Block:
         self.hash_ = None
         #self.previous_ = None
         #self.next_ = None
+        
+        self.sister_ = None
 
         self.balance_ = None
         self.account_ = None
@@ -315,38 +317,51 @@ class Block:
         nexttype = next(cur)[0]
         return Block(self.db, nextid, nexttype)
 
-    def other(self):
-        """
-        Return the "sister block" for certain types of blocks:
-        - For a send block return the corresponding receive/open block
-        - For a receive/open block return the source block
-        """
-        if self.type in ['receive', 'open']:
-            cur = self.sqldb.cursor()
-            cur.execute('select source from blocks where id=?', (self.id,))
-            source = next(cur)[0]
-            if source is None:
-                # Genesis block has no source
-                return None
-            b = Block(self.db, source)
-            assert b.type == 'send'
-            return b
-        elif self.type == 'send':
-            cur = self.sqldb.cursor()
-            try:
-                cur.execute('select r.id, r.type from blocks s, blocks r where r.source==s.id and s.id=?', (self.id,))
-                id, type = next(cur)
-                assert type in ['open', 'receive']
-                b = Block(self.db, id, type)
-                return b
-            except StopIteration:
-                # No destination block, i.e. not pocketed
-                return None
-        elif self.type == 'change':
-            # XXX Return account changed to?
-            return None
+    def sister(self):
+        if self.sister_ is not None:
+            return self.sister_
+        
+        cur = self.sqldb.cursor()
+        cur.execute('select sister from block_info where block=?', (self.id,))
+        sister_id = next(cur)[0]
+        if sister_id is not None:
+            self.sister_ = Block(self.db, sister_id)
+        
+        return self.sister_
 
-        raise ValueError('Block type should be send, receive or open (got: %s)' % self.type)
+    if False:
+        def other(self):
+            """
+            Return the "sister block" for certain types of blocks:
+            - For a send block return the corresponding receive/open block
+            - For a receive/open block return the source block
+            """
+            if self.type in ['receive', 'open']:
+                cur = self.sqldb.cursor()
+                cur.execute('select source from blocks where id=?', (self.id,))
+                source = next(cur)[0]
+                if source is None:
+                    # Genesis block has no source
+                    return None
+                b = Block(self.db, source)
+                assert b.type == 'send'
+                return b
+            elif self.type == 'send':
+                cur = self.sqldb.cursor()
+                try:
+                    cur.execute('select r.id, r.type from blocks s, blocks r where r.source==s.id and s.id=?', (self.id,))
+                    id, type = next(cur)
+                    assert type in ['open', 'receive']
+                    b = Block(self.db, id, type)
+                    return b
+                except StopIteration:
+                    # No destination block, i.e. not pocketed
+                    return None
+            elif self.type == 'change':
+                # XXX Return account changed to?
+                return None
+
+            raise ValueError('Block type should be send, receive or open (got: %s)' % self.type)
 
     def account(self):
         if self.account_ is not None:
@@ -405,7 +420,7 @@ class Block:
         elif self.type == 'receive':
             # XXX other can be None
             prev_balance = self.previous().balance()
-            other_amount = self.other().amount()
+            other_amount = self.sister().amount()
             if prev_balance is not None and other_amount is not None:
                 return prev_balance + other_amount
         elif self.type == 'open':
@@ -414,10 +429,11 @@ class Block:
                 # Genesis block
                 return GENESIS_AMOUNT
             
-            other_block = self.other()
-            assert other_block is not None
+            sister_block = self.sister()
+            if sister_block is None:
+                raise ValueError('Open block %d has no sister block' % self.id) 
             
-            return self.other().amount()
+            return sister_block.amount()
         elif self.type == 'change':
             return self.previous().balance()
 
@@ -435,14 +451,14 @@ class Block:
             return self.previous().balance() - self.balance()
             
         elif self.type == 'receive':
-            return self.other().amount()
+            return self.sister().amount()
                 
         elif self.type == 'open':   
             if self.id == 0:
                 # Genesis block
                 return GENESIS_AMOUNT
                 
-            other_block = self.other()
+            other_block = self.sister()
             if other_block is not None:
                 return other_block.amount()
                 

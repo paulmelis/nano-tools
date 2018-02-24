@@ -24,7 +24,8 @@
             <th>Type
             <th class='text-center'>Amount
             <th>&nbsp;
-            <th colspan="2">Other
+            <th>Account
+            <th>Sister block
         </tr>
         </thead>
         <tbody>
@@ -32,7 +33,7 @@
             {% set type = block.type %}
             {% set balance = block.balance() %}
             {% set amount = block.amount() %}
-            {% set other = block.other() %}
+            {% set other = block.sister() %}
             <tr>
                 <td class='text-right'>{{block.chain_index()}}
                 <td><a href="/block/{{block.id}}">{{ block.hash() | format_hash }}</a>

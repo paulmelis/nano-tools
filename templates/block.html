@@ -30,13 +30,13 @@
     </tr>
     {% if previous %}
     <tr>
-        <th align='left'>&lt;&lt; Previous 
+        <th align='left'>&#8678; Previous 
         <td><a href="/block/{{previous.id}}">{{ previous.hash() }}</a>{{ nano_org_block(previous) }}
     </tr>
     {% endif %}
     {% if next %}
     <tr>
-        <th align='left'>Next &gt;&gt;
+        <th align='left'>&#8680; Next 
         <td><a href="/block/{{next.id}}">{{ next.hash() }}</a>{{ nano_org_block(next) }}
     </tr>
     {% endif %}
@@ -57,11 +57,11 @@
 </tr>
 
 {% if block.type in ["open","receive"] %}
-    {% set source = block.other() %}
+    {% set source = block.sister() %}
     <tr>
         <td>Source
         {% if source %}
-        <td><a href="/block/{{source.id}}">{{source.hash()}}</a>
+        <td><a href="/block/{{source.id}}">{{source.hash()}}</a>{{ nano_org_block(source) }}
         {% else %}
         <td><i>Undefined</i>
         {% endif %}
@@ -70,16 +70,16 @@
 
 {% if block.type == "send" %}
     {% set destination = block.destination() %}
-    {% set other = block.other() %}
+    {% set sister = block.sister() %}
     {% set destname = destination.address | account_name %}
     <tr>
         <td>Destination
-        <td>{{ other.account() | account_link }} {{ nano_org_account(other.account()) }}
+        <td>{{ destination | account_link }} {{ nano_org_account(destination) }}
     </tr>
     <tr>
-        <td>Other
-        {% if other %}
-        <td><a href="/block/{{other.id}}">{{ other.hash() }}</a>
+        <td>Sister block
+        {% if sister %}
+        <td><a href="/block/{{sister.id}}">{{ sister.hash() }}</a>
         {% endif %}
     </tr>
     <tr>

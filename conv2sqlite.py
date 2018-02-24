@@ -24,7 +24,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import sys, collections, os, time
+import collections, os
 from struct import unpack
 import click
 import lmdb, apsw
@@ -74,7 +74,6 @@ create table blocks
     next        integer,            -- [block]      "successor" in LMDB; called "next" to match "previous"
     
     -- Depending on block type
-    work            text,           --              change, open, receive, send
     representative  integer,        -- [account]    change
     source          integer,        -- [block]      open, receive
     destination     integer,        -- [account]    send
@@ -101,10 +100,12 @@ create table block_validation
 create table block_info
 (
     block           integer not null,
-    account         integer not null,
+    account         integer not null,   -- Account this block belongs to
     
     chain_index     integer not null,   -- Index in account chain (0 = open block)    
     global_index    integer,            -- Index in the global topological sort (0 = genesis block)
+    
+    sister          integer,            -- send block <-> open/receive block
     
     --balance   text,   -- balance at this block, in raw (string representation)
     --amount    text,   -- amount transfered by this block, in raw (string representation); only for send/receive/open blocks
@@ -526,24 +527,43 @@ def derive_block_info(dbfile):
 
     open_block_to_account = {}
     account_to_open_block = {}
+    block_to_type = {}
+    block_to_sister = {}
 
-    sqlcur.execute('select id, account from blocks where type=?', ('open',))
+    sqlcur.execute('select id, account, source from blocks where type=?', ('open',))
 
-    for id, account in sqlcur:
+    for id, account, source in sqlcur:
+        block_to_previous[id] = None
+        block_to_type[id] = 'open'
+
         open_block_to_account[id] = account
         account_to_open_block[account] = id
-        block_to_previous[id] = None
+        
+        if id == 0:
+            # No source for genesis open block
+            continue
+            
+        assert source is not None
+        block_to_sister[id] = source
+        block_to_sister[source] = id
 
     # Gather all other blocks
 
     blocks_to_process = set()
 
-    sqlcur.execute('select id, previous from blocks where type<>?', ('open',))
+    sqlcur.execute('select id, type, previous, source, destination from blocks where type<>?', ('open',))
 
-    for id, previous in sqlcur:
+    for id, type, previous, source, destination in sqlcur:
+        
+        block_to_type[id] = type
+        
         if previous is None:
-            print('No previous value for block %d!' % id)
-            continue
+            print('No previous value for block %d (type %s)!' % (id, type))
+            
+        if type == 'receive':
+            assert source is not None
+            block_to_sister[id] = source
+            block_to_sister[source] = id
 
         block_to_previous[id] = previous
         blocks_to_process.add(id)
@@ -599,9 +619,7 @@ def derive_block_info(dbfile):
 
         bar.update(len(blocks_to_process))
 
-    bar.finish()
-
-    print('Have %d accounts chains' % len(account_chains))
+    bar.finish(len(account_chains))
     assert len(account_chains) == len(open_block_to_account)
     
     # Determine block -> account mapping
@@ -639,9 +657,14 @@ def derive_block_info(dbfile):
 
         account = open_block_to_account[chain[0]]
         
-        for idx, block in enumerate(chain):            
-            sqlcur.execute('insert into block_info (block, account, chain_index, global_index) values (?,?,?,?)', 
-                (block, account, idx, block_to_global_index[block]))
+        for idx, block in enumerate(chain):   
+
+            sister = None
+            if block in block_to_sister:
+                sister = block_to_sister[block]
+            
+            sqlcur.execute('insert into block_info (block, account, chain_index, global_index, sister) values (?,?,?,?,?)', 
+                (block, account, idx, block_to_global_index[block], sister))
 
         i += 1
         bar.update(i)

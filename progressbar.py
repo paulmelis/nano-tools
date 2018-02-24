@@ -49,9 +49,11 @@ class ProgressBar:
             msg = '{0} {1} {2:,}'.format(self.prefix, rotor, value)
             self._print(msg)
         
-    def finish(self):
+    def finish(self, value=None):
         self.t1 = time()
         tdiff = self.t1 - self.t0
+        if value is not None:
+            self.current_value = value
         msg = '{0} ... {1:,} ({2:.3f}s)'.format(self.prefix, self.current_value, tdiff)
         self._print(msg)
         stdout.write('\n')
