@@ -139,7 +139,7 @@ def account(id_or_address, block_limit=100):
         id = int(id_or_address)
         account = db.account_from_id(id)
         
-    last_blocks = account.chain(limit=block_limit)
+    last_blocks = account.chain(limit=block_limit, reverse=True)
     name = account.name()
     
     return render_template('account.html', 

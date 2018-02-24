@@ -191,9 +191,13 @@ class Account:
         self.open_block = Block(self.db, row[0])
         return self.open_block
 
-    def chain(self, type=None, limit=None):
+    def chain(self, type=None, limit=None, reverse=False):
         """
-        Return all blocks in the chain, in sequence, open block first.
+        Return all blocks in the chain, in sequence.
+        
+        reverse = False: open block first
+        reverse = True: last block first
+        
         If "type" is set, only blocks of the requested type will be returned.
         If "limit" is set, at most limit blocks will be returned.
         """
@@ -204,12 +208,13 @@ class Account:
         # Or multiple not pocketed ones:
         # https://nano.org/en/explore/account/xrb_39ymww61tksoddjh1e43mprw5r8uu1318it9z3agm7e6f96kg4ndqg9tuds4
 
+        order = 'desc' if reverse else 'asc'
         q = 'select block from block_info where account=?'
         v = [self.id]
         if type is not None:
             q += ' and type=?'
             v.append(type)
-        q += ' order by chain_index desc'
+        q += ' order by chain_index %s' % order
         if limit is not None:
             q += ' limit ?'
             v.append(limit)
@@ -225,6 +230,10 @@ class Account:
             res.append(b)
 
         return res
+        
+    def unpocketed(self):
+        """Return send transactions to this account that are not pocketed yet"""
+        pass
 
     def name(self):
         if self.name_ is not None:

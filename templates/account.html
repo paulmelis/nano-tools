@@ -44,6 +44,8 @@
                     {%- else -%}
                         <font style="color: #00c000">{{ amount | format_amount3 }} XRB</font>
                     {%- endif -%}
+                {%- else -%}
+                    n/a
                 {%- endif %}
                 
                 {% if type == "send" -%}
@@ -54,7 +56,7 @@
                     <td class='text-left text-nowrap'><a href="/account/{{ other.account().id }}">{{ other.account() | account_link(show_address=False) }}</a>
                 {%- else -%}
                     <td>&nbsp;
-                    <td class='text-center'>n/a
+                    <td>&nbsp;
                 {%- endif %}
                 
                 {% if other -%}
