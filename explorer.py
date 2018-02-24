@@ -140,14 +140,16 @@ def account(id_or_address, block_limit=100):
         account = db.account_from_id(id)
         
     last_blocks = account.chain(limit=block_limit, reverse=True)
-    name = account.name()
+    unpocketed_blocks = account.unpocketed(reverse=True)
+    have_transactions = (len(last_blocks) + len(unpocketed_blocks)) > 0
     
     return render_template('account.html', 
             account=account,
             last_blocks=last_blocks,
-            name=name,
-            id=account.id)
-        
+            unpocketed_blocks=unpocketed_blocks,
+            have_transactions=have_transactions,
+            num_blocks=account.chain_length())
+            
 @app.route('/block/<id_or_hash>')
 def block(id_or_hash):
     

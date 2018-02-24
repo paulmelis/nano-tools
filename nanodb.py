@@ -190,6 +190,12 @@ class Account:
             return None
         self.open_block = Block(self.db, row[0])
         return self.open_block
+        
+    def chain_length(self):
+        """Number of blocks in this account's chain"""
+        cur = self.db.cursor()
+        cur.execute('select count(*) from block_info where account=?', (self.id,))
+        return next(cur)[0]
 
     def chain(self, type=None, limit=None, reverse=False):
         """
@@ -231,9 +237,24 @@ class Account:
 
         return res
         
-    def unpocketed(self):
+    def unpocketed(self, reverse=False):
         """Return send transactions to this account that are not pocketed yet"""
-        pass
+        
+        # Find send blocks to this account with no sister (receive) block
+        order = 'desc' if reverse else 'asc'
+        cur = self.db.cursor()
+        cur.execute("""
+            select block from blocks b, block_info i 
+            where b.id=i.block and b.type=? and b.destination=? and i.sister is null
+            order by i.global_index %s""" % order,
+            ('send', self.id))
+            
+        res = []
+        for row in cur:
+            b = Block(self.db, row[0])
+            res.append(b)
+            
+        return res
 
     def name(self):
         if self.name_ is not None:

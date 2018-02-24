@@ -79,7 +79,9 @@
     <tr>
         <td>Sister block
         {% if sister %}
-        <td><a href="/block/{{sister.id}}">{{ sister.hash() }}</a>
+            <td><a href="/block/{{sister.id}}">{{ sister.hash() }}</a>
+        {% else %}
+            <td><i>Not pocketed</i>
         {% endif %}
     </tr>
     <tr>

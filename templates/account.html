@@ -6,15 +6,15 @@
 
 {% block body %}
 
-<div class='container'>
+<div class='container-fluid'>
+
     <div class='page-header'>
         <h4>Account {{account.address}} {{ nano_org_account(account) }}</h4>
-        <h5>{% if name %}{{name}}{% endif %}</h5>
+        <h5>{% if account.name() %}{{ account.name() }}{% endif %}</h5>
+        {{ "{:,}".format(num_blocks) }} blocks
     </div>
 
-{% if last_blocks | length == 0 %}
-    <i>No transactions</i>
-{% else %}
+{% if have_transactions %}
     <table class="table table-striped table-sm table-hover" cellpadding=2 cellspacing=2>
         <thead>
         <tr>
@@ -29,15 +29,27 @@
         </tr>
         </thead>
         <tbody>
+        {% for sister in unpocketed_blocks %}    
+            <tr>
+                <td>&nbsp;
+                <td>&nbsp;
+                <td>&nbsp;
+                <td class='text-left text-nowrap'><i>Not pocketed</i>
+                <td class='text-right text-nowrap'>{{ sister.amount() | format_amount3 }} XRB
+                <td class='text-center'>FROM
+                <td class='text-left text-nowrap'><a href="/account/{{ sister.account().id }}">{{ sister.account() | account_link(show_address=False) }}</a>
+                <td><a href="/block/{{sister.id}}">{{ sister.hash() | format_hash }}</a>
+            </tr>
+        {% endfor %}
         {% for block in last_blocks %}
             {% set type = block.type %}
             {% set balance = block.balance() %}
             {% set amount = block.amount() %}
-            {% set other = block.sister() %}
+            {% set sister = block.sister() %}
             <tr>
                 <td class='text-right'>{{block.chain_index()}}
                 <td><a href="/block/{{block.id}}">{{ block.hash() | format_hash }}</a>
-                <td class='text-right'><a href="/block/{{block.id}}">{% if balance is not none %}{{ balance | format_amount3 }}{% endif %}</a>
+                <td class='text-right text-nowrap'><a href="/block/{{block.id}}">{% if balance is not none %}{{ balance | format_amount3 }} XRB{% endif %}</a>
                 <td class='text-left'><a href="/block/{{block.id}}">{{ block.type }}</a>
                 <td class='text-right text-nowrap'>{% if amount -%}
                     {%- if type == "send" -%}
@@ -52,16 +64,16 @@
                 {% if type == "send" -%}
                     <td class='text-center'>TO
                     <td class='text-left text-nowrap'><a href="/account/{{ block.destination().id }}">{{ block.destination() | account_link(show_address=False) }}</a>
-                {%- elif type in ["open", "receive"] and other -%}
+                {%- elif type in ["open", "receive"] and sister -%}
                     <td class='text-center'>FROM
-                    <td class='text-left text-nowrap'><a href="/account/{{ other.account().id }}">{{ other.account() | account_link(show_address=False) }}</a>
+                    <td class='text-left text-nowrap'><a href="/account/{{ sister.account().id }}">{{ sister.account() | account_link(show_address=False) }}</a>
                 {%- else -%}
                     <td>&nbsp;
                     <td>&nbsp;
                 {%- endif %}
                 
-                {% if other -%}
-                    <td><a href="/block/{{other.id}}">{{ other.hash() | format_hash }}</a>
+                {% if sister -%}
+                    <td><a href="/block/{{sister.id}}">{{ sister.hash() | format_hash }}</a>
                 {%- else -%}
                     {%- if type == "send" -%}
                         <td><i>Not pocketed</i>
@@ -71,8 +83,9 @@
                 {%- endif %}
             </tr>
         {% endfor %}
-        {% if last_blocks[-1].chain_index() > 0 %}
+        {% if last_blocks | length > 0 and last_blocks[-1].chain_index() > 0 %}
         <tr>
+            <td>...
             <td>...
             <td>...
             <td>...
@@ -84,6 +97,8 @@
         {% endif %}
         </tbody>
     <table>
+{% else %}
+    <i>No transactions</i>
 {% endif %}
 </div>
 
