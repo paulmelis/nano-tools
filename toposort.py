@@ -239,16 +239,11 @@ def topological_sort(edges):
     
 
 def add_edge(edges, src, dst):
-    global edge_count
-    
     try:
         edges[src].append(dst)
     except KeyError:
         edges[src] = [dst]
-        
-    edge_count += 1
-    bar.update(edge_count)
-    
+            
     
 def generate_block_dependencies(cur, account_to_open_block, block_to_account):
     """
@@ -258,17 +253,14 @@ def generate_block_dependencies(cur, account_to_open_block, block_to_account):
     - key = block ID
     - value = list of block IDs that depend on the key block
     """
-
-    global edge_count   # XXX yuck
-    edge_count = 0
     
-    global bar
-    bar = progressbar.ProgressBar('Generating edges')
-                
     # Process all blocks
         
     edges = {}
     used_block_ids = set()        
+    edge_count = 0
+
+    bar = progressbar.ProgressBar('Generating edges')
     
     # XXX include representative?
     cur.execute('select id, type, previous, next, source, destination from blocks')
@@ -286,10 +278,12 @@ def generate_block_dependencies(cur, account_to_open_block, block_to_account):
                 if source != this_account:
                     # Only if not sending to the same account
                     add_edge(edges, source, id)
+                    edge_count += 1
                     
             if previous is not None:
                 # {other} <previous> -> open {this}
                 add_edge(edges, previous, id)
+                edge_count += 1
         
         elif type == 'send':
             assert destination is not None
@@ -314,6 +308,7 @@ def generate_block_dependencies(cur, account_to_open_block, block_to_account):
             
             # {other} <previous> -> send {this}
             add_edge(edges, previous, id)
+            edge_count += 1
             
         elif type == 'receive':
             # {other} send -> receive {this}
@@ -322,49 +317,29 @@ def generate_block_dependencies(cur, account_to_open_block, block_to_account):
             # {other} <previous> -> receive {this}
             add_edge(edges, previous, id)
             
+            edge_count += 2
+            
         elif type == 'change':
             # XXX representative
             
             if previous is not None:
                 # {other} <previous> -> change {this}
                 add_edge(edges, previous, id)
+                edge_count += 1
                 
+        bar.update(edge_count)
+                
+    # XXX
     for id in used_block_ids:
         if id not in edges:
             edges[id] = []
             
-    _check(edges)
+    #_check(edges)
     
     bar.finish()
             
     return edges
-    
-    
-"""
-def _traverse(f, visited, current):
-    
-    if current in visited:
-        return False
-        
-    visited.add(current)
-    
-    label = '%d\\n%s' % (current, block_to_type[current])
-    f.write('%d [label="%s"];\n' % (current, label))
-    
-    cont = True
-    
-    for dst in edges[current]:
-        f.write('%d -> %d;\n' % (current, dst))
-        cont = cont and _traverse(f, visited, dst)
-    
-    return cont
-       
-def traverse_dot(fname, n):
-    with open(fname, 'wt') as f:
-        f.write('digraph G {\n')
-        _traverse(f, set(), n)
-        f.write('}\n')
-"""    
+     
 
 if __name__ == '__main__':
     

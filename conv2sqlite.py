@@ -522,7 +522,7 @@ def derive_block_info(dbfile):
     # Value: id of previous block
     block_to_previous = {}
 
-    # Get open blocks (as they have an account assigned)
+    # Get open blocks, for which we know the account
 
     open_block_to_account = {}
     account_to_open_block = {}
@@ -613,8 +613,8 @@ def derive_block_info(dbfile):
         for block in chain:
             block_to_account[block] = account
         
-    # Perform global topological sort of all blocks
-    # (uses block_info results from previous step)
+    # Perform global topological sort of all blocks, based on
+    # dependencies between blocks
             
     edges = generate_block_dependencies(sqlcur, account_to_open_block, block_to_account)
     
