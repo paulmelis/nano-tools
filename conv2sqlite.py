@@ -130,13 +130,14 @@ drop index if exists blocks_type;
 drop index if exists block_info_account;
 drop index if exists block_info_chain_index;
 drop index if exists block_info_global_index;
+drop index if exists block_info_sister;
 """
 
 CREATE_INDICES = """
 create index accounts_address on accounts (address);
 
 create index blocks_source on blocks (source);
-create index blocks_destination on blocks (source);
+create index blocks_destination on blocks (destination);
 create index blocks_account on blocks (account);
 create index blocks_balance on blocks (balance);
 create index blocks_previous on blocks (previous);
@@ -146,6 +147,7 @@ create index blocks_type on blocks (type);
 create index block_info_account on block_info (account);
 create index block_info_chain_index on block_info (chain_index);
 create index block_info_global_index on block_info (global_index);
+create index block_info_sister on block_info (sister);
 
 analyze;
 """

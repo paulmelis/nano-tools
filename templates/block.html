@@ -17,6 +17,7 @@
     <tr>
         <th align='left'>Account 
         <td><a class="button" href="/block/{{account.first_block().id}}">&larrb;</a>
+            <a class="button" href="/block/{{account.last_block().id}}">&rarrb;</a>
             {{ account | account_link }}
             {{ nano_org_account(account) }}
     </tr>
@@ -79,7 +80,7 @@
     <tr>
         <td>Sister block
         {% if sister %}
-            <td><a href="/block/{{sister.id}}">{{ sister.hash() }}</a>
+            <td><a href="/block/{{sister.id}}">{{ sister.hash() }}</a>{{ nano_org_block(sister) }}
         {% else %}
             <td><i>Not pocketed</i>
         {% endif %}

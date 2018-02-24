@@ -179,7 +179,7 @@ class Account:
 
     # XXX rename to open_block()
     def first_block(self):
-        """Should always return an "open" block"""
+        """Return the first block in the chain. Should always return an "open" block"""
         if self.open_block is not None:
             return self.open_block
         cur = self.db.cursor()
@@ -190,6 +190,17 @@ class Account:
             return None
         self.open_block = Block(self.db, row[0])
         return self.open_block
+        
+    def last_block(self):
+        """Return the last (i.e. most recent) block in the chain"""
+        cur = self.db.cursor()
+        cur.execute("""
+            select block from block_info where account=? and chain_index in (
+                select max(chain_index) from block_info where account=?
+            )
+            """, (self.id, self.id))
+        id = next(cur)[0]
+        return Block(self.db, id)
         
     def chain_length(self):
         """Number of blocks in this account's chain"""
@@ -237,18 +248,25 @@ class Account:
 
         return res
         
-    def unpocketed(self, reverse=False):
+    def unpocketed(self, limit=None, reverse=False):
         """Return send transactions to this account that are not pocketed yet"""
         
         # Find send blocks to this account with no sister (receive) block
         order = 'desc' if reverse else 'asc'
-        cur = self.db.cursor()
-        cur.execute("""
+        
+        q = """
             select block from blocks b, block_info i 
             where b.id=i.block and b.type=? and b.destination=? and i.sister is null
-            order by i.global_index %s""" % order,
-            ('send', self.id))
+            order by i.global_index %s
+            """ % order
+        v = ['send', self.id]
+        if limit is not None:
+            q += ' limit ?'
+            v.append(limit)   
             
+        cur = self.db.cursor()
+        cur.execute(q, v)
+        
         res = []
         for row in cur:
             b = Block(self.db, row[0])

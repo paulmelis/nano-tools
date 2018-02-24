@@ -129,7 +129,7 @@ def known_accounts():
 # gives exception
 @app.route('/account/<id_or_address>')
 @app.route('/account/<id_or_address>/<int:block_limit>')
-def account(id_or_address, block_limit=100):
+def account(id_or_address, block_limit=50):
     
     db = get_db()
     
@@ -139,8 +139,9 @@ def account(id_or_address, block_limit=100):
         id = int(id_or_address)
         account = db.account_from_id(id)
         
+    # XXX handle case where there's more blocks than the limit
     last_blocks = account.chain(limit=block_limit, reverse=True)
-    unpocketed_blocks = account.unpocketed(reverse=True)
+    unpocketed_blocks = account.unpocketed(limit=block_limit, reverse=True)
     have_transactions = (len(last_blocks) + len(unpocketed_blocks)) > 0
     
     return render_template('account.html', 

@@ -41,6 +41,9 @@
                 <td><a href="/block/{{sister.id}}">{{ sister.hash() | format_hash }}</a>
             </tr>
         {% endfor %}
+        {% if unpocketed_blocks | length > 0 %}
+            <tr><td class='text-center' colspan="8"><i>There's possibly more unpocketed blocks</i></td>
+        {% endif %}
         {% for block in last_blocks %}
             {% set type = block.type %}
             {% set balance = block.balance() %}
