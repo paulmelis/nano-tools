@@ -31,7 +31,7 @@ import lmdb, apsw
 import progressbar
 
 from rainumbers import hex2bin, bin2hex, bin2balance_mxrb, bin2balance_raw, encode_account
-from nanodb import KNOWN_ACCOUNTS, GENESIS_OPEN_BLOCK_HASH, GENESIS_ACCOUNT, GENESIS_PUBLIC_KEY, GENESIS_AMOUNT
+from nanodb import KNOWN_ACCOUNTS, GENESIS_OPEN_BLOCK_HASH, GENESIS_ACCOUNT, GENESIS_PUBLIC_KEY, GENESIS_BALANCE_XRB, GENESIS_BALANCE_RAW
 from toposort import topological_sort, generate_block_dependencies
 
 DATADIR = 'RaiBlocks'
@@ -457,6 +457,10 @@ def create(dbfile):
             sqlcur.execute('commit')
 
             bar.finish()
+            
+    # Genesis block 
+    sqlcur.execute('update blocks set balance=?,balance_raw=? where id=0', 
+        (GENESIS_BALANCE_XRB, str(GENESIS_BALANCE_RAW)))
 
     # Store accounts
 
@@ -515,8 +519,8 @@ def compute_block_balances_and_amounts(account_chains, block_to_type, block_to_p
     blocks_processed = set()
     
     # Add the Genesis open block 
-    block_to_balance[0] = GENESIS_AMOUNT
-    block_to_amount[0] = GENESIS_AMOUNT
+    block_to_balance[0] = GENESIS_BALANCE_RAW
+    block_to_amount[0] = GENESIS_BALANCE_RAW
     blocks_processed.add(0)
 
     # Start with the last blocks of all accounts and work backwards
@@ -678,7 +682,7 @@ def derive_block_info(dbfile):
 
     blocks_to_process = set()
 
-    sqlcur.execute('select id, type, previous, source, destination, balance from blocks where type<>?', ('open',))
+    sqlcur.execute('select id, type, previous, source, destination, balance_raw from blocks where type<>?', ('open',))
 
     for id, type, previous, source, destination, balance in sqlcur:
         
@@ -692,7 +696,7 @@ def derive_block_info(dbfile):
             block_to_sister[id] = source
             block_to_sister[source] = id
         elif type == 'send':
-            block_to_balance[id] = balance
+            block_to_balance[id] = int(balance)
 
         block_to_previous[id] = previous
         blocks_to_process.add(id)
@@ -798,10 +802,11 @@ def derive_block_info(dbfile):
             if block in block_to_sister:
                 sister = block_to_sister[block]
                 
-            balance = block_to_balance[block]
+            # Long int -> string
+            balance = str(block_to_balance[block])
             amount = None
             if block in block_to_amount:
-                amount = block_to_amount[block]
+                amount = str(block_to_amount[block])
             
             sqlcur.execute('insert into block_info (block, account, chain_index, global_index, sister, balance, amount) values (?,?,?,?,?,?,?)', 
                 (block, account, idx, block_to_global_index[block], sister, balance, amount))
