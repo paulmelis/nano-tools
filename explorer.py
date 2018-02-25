@@ -129,6 +129,7 @@ def known_accounts():
 # http://localhost:7777/account/xrb_3jwrszth46rk1mu7rmb4rhm54us8yg1gw3ipodftqtikf5yqdyr7471nsg1k
 # http://localhost:7777/block/1977214 (1D54C237...144976F2)
 # gives exception
+# XXX compute current account balance
 @app.route('/account/<id_or_address>')
 @app.route('/account/<id_or_address>/<int:block_limit>')
 def account(id_or_address, block_limit=50):
