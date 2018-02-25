@@ -30,7 +30,7 @@ import click
 import lmdb, apsw
 import progressbar
 
-from rainumbers import *
+from rainumbers import hex2bin, bin2hex, bin2balance_mxrb, bin2balance_raw, encode_account
 from nanodb import KNOWN_ACCOUNTS, GENESIS_OPEN_BLOCK_HASH, GENESIS_ACCOUNT, GENESIS_PUBLIC_KEY, GENESIS_AMOUNT
 from toposort import topological_sort, generate_block_dependencies
 
@@ -508,6 +508,130 @@ def analyze(dbfile):
     sqldb = apsw.Connection(dbfile)
     sqlcur = sqldb.cursor()
     sqlcur.execute('analyze')
+    
+    
+def compute_block_balances_and_amounts(account_chains, block_to_type, block_to_previous, block_to_sister, block_to_balance, block_to_amount):
+    
+    blocks_processed = set()
+    
+    # Add the Genesis open block 
+    block_to_balance[0] = GENESIS_AMOUNT
+    block_to_amount[0] = GENESIS_AMOUNT
+    blocks_processed.add(0)
+
+    # Start with the last blocks of all accounts and work backwards
+    # to determine block balances and amounts
+    
+    bar = progressbar.ProgressBar('Computing block balances and transfer amounts')
+
+    stack = [last_block for last_block, chain in account_chains.items()]
+    current_block = stack.pop()
+    
+    while True:
+        
+        assert current_block not in blocks_processed
+        
+        #print(current_block)
+        
+        bar.update(len(blocks_processed))
+            
+        type = block_to_type[current_block]
+        #print(type)
+        
+        if type == 'send':
+            assert current_block in block_to_balance
+            assert current_block in block_to_previous
+            
+            previous_block = block_to_previous[current_block]
+            if previous_block not in blocks_processed:
+                # Need balance of previous block before we can compute this block. 
+                stack.append(current_block)
+                current_block = previous_block
+                continue
+            
+            # Have balance of previous block, can therefore compute amount
+            amount = block_to_balance[previous_block] - block_to_balance[current_block]
+            # XXX need to use integer raw amounts
+            #if amount < -0.0:
+            #    raise ValueError('amount < 0: %g' % amount)
+            block_to_amount[current_block] = amount
+            
+            blocks_processed.add(current_block)
+
+        elif type == 'receive':
+            assert current_block in block_to_sister
+            send_block = block_to_sister[current_block]
+            assert block_to_type[send_block] == 'send'
+            
+            # Check necessary input blocks: previous (for balance)
+            # and send (for amount)
+            
+            assert current_block in block_to_previous
+            previous_block = block_to_previous[current_block]
+            
+            if previous_block not in blocks_processed:
+                stack.append(current_block)
+                current_block = previous_block
+                continue
+            
+            if send_block not in blocks_processed:
+                stack.append(current_block)
+                current_block = send_block
+                continue
+                
+            # What is received = what was sent
+            amount = block_to_amount[send_block]
+            #assert amount >= 0
+            block_to_amount[current_block] = amount
+            block_to_balance[current_block] = block_to_balance[previous_block] + amount
+            
+            blocks_processed.add(current_block)
+                
+        elif type == 'open':
+            assert current_block in block_to_sister
+            send_block = block_to_sister[current_block]
+            assert block_to_type[send_block] == 'send'
+            
+            #print('send block of open is %d' % send_block)
+            
+            if send_block not in blocks_processed:
+                stack.append(current_block)
+                current_block = send_block
+                continue
+            
+            # Open balance and amount = what was sent
+            amount = block_to_amount[send_block]
+            block_to_amount[current_block] = amount
+            block_to_balance[current_block] = amount
+            
+            blocks_processed.add(current_block)
+            
+        elif type == 'change':
+            
+            assert current_block in block_to_previous
+            previous_block = block_to_previous[current_block]
+            if previous_block not in blocks_processed:
+                stack.append(current_block)
+                current_block = previous_block
+                continue
+                
+            block_to_balance[current_block] = block_to_balance[previous_block]
+            
+            blocks_processed.add(current_block)
+    
+        # Pop from stack
+        
+        try:
+            current_block = stack.pop()
+            while current_block in blocks_processed:
+                current_block = stack.pop()
+                
+        except IndexError:
+            # Stack empty, all done!
+            break
+        
+    bar.finish()
+    
 
 @click.command()
 @click.option('-d', '--dbfile', default=DEFAULT_SQLITE_DB, help='SQLite database file', show_default=True)
@@ -636,130 +760,13 @@ def derive_block_info(dbfile):
         for block in chain:
             block_to_account[block] = account
                 
-    # XXX Compute account balance at each block, plus amounts transfered
+    # Compute account balance at each block, plus amounts transfered
     # by send/receive/open blocks.
-
-    # Keep track of amounts transfered (only for send/open/receive blocks)
-    block_to_amount = {}        
-    blocks_processed = set()
     
-    # Bootstrap with the Genesis account
-    block_to_balance[0] = GENESIS_AMOUNT
-    block_to_amount[0] = GENESIS_AMOUNT
-    blocks_processed.add(0)
+    block_to_amount = {}  
 
-    # Start with the last blocks of all accounts and work backwards
-    # to determine block balances and amounts
-    
-    bar = progressbar.ProgressBar('Computing block balances and transfer amounts')
-
-    stack = [last_block for last_block, chain in account_chains.items()]
-    current_block = stack.pop()
-    
-    while True:
-        
-        assert current_block not in blocks_processed
-        
-        #print(current_block)
-        
-        bar.update(len(blocks_processed))
-            
-        type = block_to_type[current_block]
-        #print(type)
-        
-        if type == 'send':
-            assert current_block in block_to_balance
-            assert current_block in block_to_previous
-            
-            previous_block = block_to_previous[current_block]
-            if previous_block not in blocks_processed:
-                # Need balance of previous block before we can compute this block. 
-                stack.append(current_block)
-                current_block = previous_block
-                continue
-            
-            # Have balance of previous block, can therefore compute amount
-            amount = block_to_balance[previous_block] - block_to_balance[current_block]
-            # XXX need to use integer raw amounts
-            #if amount < -0.0:
-            #    raise ValueError('amount < 0: %g' % amount)
-            block_to_amount[current_block] = amount
-            
-            blocks_processed.add(current_block)
-
-        elif type == 'receive':
-            assert current_block in block_to_sister
-            send_block = block_to_sister[current_block]
-            assert block_to_type[send_block] == 'send'
-            
-            # Check necessary input blocks: previous (for balance)
-            # and send (for amount)
-            
-            assert current_block in block_to_previous
-            previous_block = block_to_previous[current_block]
-            
-            if previous_block not in blocks_processed:
-                stack.append(current_block)
-                current_block = previous_block
-                continue
-            
-            if send_block not in blocks_processed:
-                stack.append(current_block)
-                current_block = send_block
-                continue
-                
-            # What is received = what was sent
-            amount = block_to_amount[send_block]
-            #assert amount >= 0
-            block_to_amount[current_block] = amount
-            block_to_balance[current_block] = block_to_balance[previous_block] + amount
-            
-            blocks_processed.add(current_block)
-                
-        elif type == 'open':
-            assert current_block in block_to_sister
-            send_block = block_to_sister[current_block]
-            assert block_to_type[send_block] == 'send'
-            
-            #print('send block of open is %d' % send_block)
-            
-            if send_block not in blocks_processed:
-                stack.append(current_block)
-                current_block = send_block
-                continue
-            
-            # Open balance and amount = what was sent
-            amount = block_to_amount[send_block]
-            block_to_amount[current_block] = amount
-            block_to_balance[current_block] = amount
-            
-            blocks_processed.add(current_block)
-            
-        elif type == 'change':
-            
-            assert current_block in block_to_previous
-            previous_block = block_to_previous[current_block]
-            if previous_block not in blocks_processed:
-                stack.append(current_block)
-                current_block = previous_block
-                continue
-                
-            block_to_balance[current_block] = block_to_balance[previous_block]
-            
-            blocks_processed.add(current_block)
-    
-        # Pop from stack
-        
-        try:
-            current_block = stack.pop()
-            while current_block in blocks_processed:
-                current_block = stack.pop()
-                
-        except IndexError:
-            # Stack empty, all done!
-            break
-        
-    bar.finish()
+    compute_block_balances_and_amounts(account_chains, block_to_type, block_to_previous, block_to_sister, 
+        block_to_balance, block_to_amount)
     
     # Perform global topological sort of all blocks, based on
     # dependencies between blocks
