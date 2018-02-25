@@ -60,7 +60,7 @@ KNOWN_ACCOUNTS = {
 GENESIS_ACCOUNT         = 'xrb_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3'
 GENESIS_OPEN_BLOCK_HASH = '991CF190094C00F0B68E2E5F75F6BEE95A2E0BD93CEAA4A6734DB9F19B728948'
 GENESIS_PUBLIC_KEY      = 'E89208DD038FBB269987689621D52292AE9C35941A7484756ECCED92A65093BA'
-GENESIS_AMOUNT          = 340282366.920939
+GENESIS_AMOUNT          = 340282366.920939      # XXX store as raw. rename to balance?
 
 assert KNOWN_ACCOUNTS[GENESIS_ACCOUNT] == 'Genesis'
 
@@ -158,6 +158,36 @@ class NanoDatabase:
     def dot_graph(self, fname, blocks):
         """For a selection of blocks write a DOT graph to file"""
         pass
+        
+    def stats(self):
+        """Return a dict with some statistics"""
+        cur = self.sqldb.cursor()
+        
+        blocks_by_type = {}
+        cur.execute('select type, count(*) from blocks group by type')
+        for type, count in cur:
+            blocks_by_type[type] = count
+            
+        # XXX compute in raw
+        # XXX need amount, not balance
+        #cur.execute('select sum(balance) from blocks where type=?', ('send',))
+        #total_volume_sent = next(cur)[0]
+        
+        # XXX need amount, not balance
+        if False:
+            cur.execute("""
+                select sum(b.balance)
+                from blocks b, block_info i
+                where b.id=i.sister and b.type=? and i.sister is null
+                """,
+                ('send',))
+            volume_unpocketed = next(cur)[0]
+            
+        return dict(
+            blocks_by_type=blocks_by_type,
+            #total_volume_sent=total_volume_sent,
+            #volume_unpocketed=volume_unpocketed
+        )
 
 
 class Account:
@@ -457,7 +487,6 @@ class Block:
             cur.execute('select balance from blocks where id=?', (self.id,))
             self.balance_ = next(cur)[0]
         elif self.type == 'receive':
-            # XXX other can be None
             prev_balance = self.previous().balance()
             other_amount = self.sister().amount()
             if prev_balance is not None and other_amount is not None:
@@ -507,3 +536,4 @@ if __name__ == '__main__':
 
     db = NanoDatabase(sys.argv[1])
     db.check()
+    print(db.stats())
