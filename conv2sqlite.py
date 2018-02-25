@@ -107,8 +107,8 @@ create table block_info
     
     sister          integer,            -- send block <-> open/receive block
     
-    --balance   text,   -- balance at this block, in raw (string representation)
-    --amount    text,   -- amount transfered by this block, in raw (string representation); only for send/receive/open blocks
+    balance         text,               -- balance at this block, in raw (string representation)
+    amount          text,               -- amount transfered by this block, in raw (string representation); only for send/receive/open blocks
 
     primary key(block)
 );
@@ -651,7 +651,7 @@ def derive_block_info(dbfile):
     # Start with the last blocks of all accounts and work backwards
     # to determine block balances and amounts
     
-    bar = progressbar.ProgressBar('Computing block balance and amount')
+    bar = progressbar.ProgressBar('Computing block balances and transfer amounts')
 
     stack = [last_block for last_block, chain in account_chains.items()]
     current_block = stack.pop()
@@ -744,7 +744,6 @@ def derive_block_info(dbfile):
                 current_block = previous_block
                 continue
                 
-            #block_to_amount[current_block] = 0.0
             block_to_balance[current_block] = block_to_balance[previous_block]
             
             blocks_processed.add(current_block)
@@ -791,9 +790,14 @@ def derive_block_info(dbfile):
             sister = None
             if block in block_to_sister:
                 sister = block_to_sister[block]
+                
+            balance = block_to_balance[block]
+            amount = None
+            if block in block_to_amount:
+                amount = block_to_amount[block]
             
-            sqlcur.execute('insert into block_info (block, account, chain_index, global_index, sister) values (?,?,?,?,?)', 
-                (block, account, idx, block_to_global_index[block], sister))
+            sqlcur.execute('insert into block_info (block, account, chain_index, global_index, sister, balance, amount) values (?,?,?,?,?,?,?)', 
+                (block, account, idx, block_to_global_index[block], sister, balance, amount))
 
         i += 1
         bar.update(i)
