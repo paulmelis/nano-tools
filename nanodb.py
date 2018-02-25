@@ -339,6 +339,8 @@ class Block:
         self.sister_ = None
 
         self.balance_ = None
+        self.amount_ = None     # Only for send/open/receive blocks
+        
         self.account_ = None
         self.global_index_ = None
         self.chain_index_ = None
@@ -480,8 +482,18 @@ class Block:
         """
         Return the account balance at this block in the chain
         """
-        if self.balance_ is not None:       # XXX won't work with the values below
+        
+        if self.balance_ is not None:      
             return self.balance_
+        
+        cur = self.sqldb.cursor()
+        cur.execute('select balance from block_info where block=?', (self.id,))
+        self.balance_ = int(next(cur)[0])
+        
+        return self.balance_
+        
+        
+        
             
         if self.type == 'send':
             cur = self.sqldb.cursor()
@@ -515,6 +527,18 @@ class Block:
         For a send/receive/open block compute the amount being transfered.
         For other block types return None.
         """
+        
+        # XXX if we retrieve none below we will still perform the query multiple times
+        if self.amount_ is not None:      
+            return self.amount_
+        
+        cur = self.sqldb.cursor()
+        cur.execute('select amount from block_info where block=?', (self.id,))
+        amount = next(cur)[0]
+        if amount is not None:
+            self.amount_ = int(amount)
+        
+        return self.amount_
             
         if self.type == 'send':
             return self.previous().balance() - self.balance()

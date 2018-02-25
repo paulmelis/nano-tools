@@ -65,11 +65,13 @@ def account_link(eval_ctx, account, show_address=True):
     return s
     
 @app.template_filter('format_amount3')            
-def format_amount3(value):
+def format_amount_mxrb_3(value):
+    value = value / 10**30
     return "{:,.3f}".format(value)
 
 @app.template_filter('format_amount6')            
-def format_amount6(value):
+def format_amount_mxrb_6(value):
+    value = value / 10**30
     return "{:,.6f}".format(value)
 
 @app.template_filter('format_hash')            

@@ -69,9 +69,10 @@
     </tr>
 {% endif %}
 
+{% set sister = block.sister() %}
+
 {% if block.type == "send" %}
     {% set destination = block.destination() %}
-    {% set sister = block.sister() %}
     {% set destname = destination.address | account_name %}
     <tr>
         <td>Destination
@@ -85,15 +86,19 @@
             <td><i>Not pocketed</i>
         {% endif %}
     </tr>
+{% endif %}
+{% if block.type in ["send","receive","open"] %}
+    {% set color = "#ff0000" if block.type == "send" else "#00c000" %}
     <tr>
         <td>Amount
-        <td style="color: #ff0000">{{ block.amount() | format_amount6 }} XRB
+        <td style="color: {{color}}">{{ block.amount() | format_amount6 }} XRB
     </tr>
     <tr>
-        <td>Balance (after send)
+        <td>Balance (after block)
         <td>{{ block.balance() | format_amount6 }} XRB
     </tr>
 {% endif %}
+
 <table>
 
 </div>
