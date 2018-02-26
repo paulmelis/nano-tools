@@ -57,19 +57,26 @@
     <td>{{block.type}}
 </tr>
 
+{% set sister = block.sister() %}
+
 {% if block.type in ["open","receive"] %}
-    {% set source = block.sister() %}
     <tr>
         <td>Source
-        {% if source %}
-        <td><a href="/block/{{source.id}}">{{source.hash()}}</a>{{ nano_org_block(source) }}
+        {% if sister %}
+        <td><a href="/block/{{sister.id}}">{{ sister.hash() }}</a>{{ nano_org_block(sister) }}
+        {% else %}
+        <td><i>Undefined</i>
+        {% endif %}
+    </tr>
+    <tr>
+        <td>From
+        {% if sister %}
+        <td><a href="/account/{{ sister.account().id }}">{{ sister.account() | account_link(show_address=False) }}</a>{{ nano_org_account(sister.account()) }}
         {% else %}
         <td><i>Undefined</i>
         {% endif %}
     </tr>
 {% endif %}
-
-{% set sister = block.sister() %}
 
 {% if block.type == "send" %}
     {% set destination = block.destination() %}

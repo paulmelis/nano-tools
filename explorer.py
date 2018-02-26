@@ -118,7 +118,7 @@ def known_accounts():
 
 @app.route('/account/<id_or_address>')
 @app.route('/account/<id_or_address>/<int:block_limit>')
-def account(id_or_address, block_limit=50):
+def account(id_or_address, block_limit=100):
     
     db = get_db()
     

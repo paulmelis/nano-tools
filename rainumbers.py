@@ -53,8 +53,11 @@ def format_amount(amount, precision):
     elif amount > UNIT_uxrb:
         return (fmt+"*10<sup>-9</sup> XRB").format(amount / UNIT_mxrb)
         
+    elif amount > 10**15:
+        return (fmt+"*10<sup>-12</sup> XRB").format(amount / UNIT_uxrb)  
+
     else:
-        return (fmt+"*10<sup>-12</sup> XRB").format(amount / UNIT_uxrb)    
+        return "%d raw" % amount
     
 def bin2hex(s):
     assert isinstance(s, bytes)

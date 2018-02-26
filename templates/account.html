@@ -52,13 +52,13 @@
             <tr>
                 <td class='text-right'>{{block.chain_index()}}
                 <td><a href="/block/{{block.id}}">{{ block.hash() | format_hash }}</a>
-                <td class='text-right text-nowrap'><a href="/block/{{block.id}}">{% if balance is not none %}{{ balance | format_amount3 }}{% endif %}</a>
+                <td class='text-right text-nowrap' style='border-right: 1px solid black;'><a href="/block/{{block.id}}">{% if balance is not none %}{{ balance | format_amount3 }}{% endif %}</a>
                 <td class='text-left'><a href="/block/{{block.id}}">{{ block.type }}</a>
                 <td class='text-right text-nowrap'>{% if amount -%}
                     {%- if type == "send" -%}
                         <font style="color: #ff0000">{{ amount | format_amount3 }}</font>
                     {%- else -%}
-                        <font style="color: #00c000">{{ amount | format_amount3 }}</font>
+                        <font style="color: #00c000">{{ amount | format_amount3 }} </font>
                     {%- endif -%}
                 {%- else -%}
                     n/a
