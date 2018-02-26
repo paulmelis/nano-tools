@@ -98,6 +98,13 @@ class NanoDatabase:
             return Account(self, row[0], addr)
         except StopIteration:
             raise ValueError('Unknown account')
+            
+    def account_from_name(self, name):
+        for address, accname in KNOWN_ACCOUNTS.items():
+            if name == accname:
+                return self.account_from_address(address)
+                
+        raise ValueError('Account name "%s" not found' % name)
 
     def accounts(self):
         """Return a list of all accounts"""
@@ -113,6 +120,44 @@ class NanoDatabase:
     # must have been created before the receiving account was opened. 
     # Therefore, account creation can be represented as a tree, with 
     # the Genesis account as the root.
+    
+    def account_interactions(self, left_account, right_account):
+        """
+        Return a list of transactions (send blocks) between two accounts, 
+        in global (ascending) order.
+        
+        [(<direction>, <block>), ...]
+        
+        Transaction direction is either 'left' (send from right account 
+        to left) or 'right' (send from left to right).
+        """
+        
+        assert isinstance(left_account, Account)
+        assert isinstance(right_account, Account)
+        
+        cur = self.sqldb.cursor()
+        cur.execute("""
+            select i.account, b.id from blocks b, block_info i
+            where 
+                b.id = i.block and b.type=? and 
+                    ((i.account=? and b.destination=?)
+                    or
+                    (i.account=? and b.destination=?))
+            order by i.global_index asc
+            """,
+            ('send',
+            left_account.id, right_account.id,
+            right_account.id, left_account.id))
+            
+        res = []
+        
+        for account, block in cur:
+            if account == left_account.id:
+                res.append(('right', block))
+            else:
+                res.append(('left', block))
+        
+        return res
 
     def block_from_id(self, id, type=None):
         assert isinstance(id, int)
@@ -145,12 +190,6 @@ class NanoDatabase:
         # Check successor value against previous of successor block
 
         # check block hash length (which are not the same, have leading zeroes?)
-
-
-    def stats(self):
-        pass
-
-        # number of frontiers, i.e. blocks with null next?
 
     def cursor(self):
         """For when you know what you're doing..."""
