@@ -1,16 +1,22 @@
 Nano tools
 ==========
+ 
+Some Python-based tools for exploring the Nano block-lattice and LMDB-based
+database that the Nano wallet and node software (see [1]) use. 
+Nano (https://nano.org) is a cryptocurrency that aims to be feeless, 
+instant and high throughput. Note that this project has no relation to 
+the official Nano project.
 
-Some Python-based tools for inspecting the Nano block-lattice and LMDB-based
-database that the Nano wallet and node software use. Incuded is a tool to
-convert (a subset of) stored blocks to a SQLite database for easier querying
-with SQL. Also includes an explorer similar to the one on nano.org, mostly for
-testing, but also usable to browse the data.
-
-Paul Melis (paul.melis@gmail.com)
+Included is a tool to convert (a subset of) stored blocks to a SQLite database 
+for easy querying with SQL. Also includes an explorer similar to the one on 
+nano.org, mostly for testing, but also usable to browse the data.
 
 In case you find this software useful, donations are welcome at
 xrb_1mycqeczobsiyerohkmeeyt7ehyyfjyz5h4hi53ffb6p5qjrefzfcrpc454t
+
+Paul Melis (paul.melis@gmail.com)
+
+[1] https://github.com/nanocurrency/raiblocks
 
 
 Files
@@ -35,12 +41,12 @@ Files
     You can change the output file with the `-d` option.
   - If you have enough free memory (say 4-8 GBs) you can
     generate the SQLite database on a ram-disk, such as `/dev/shm` on Linux, for
-    faster generation and query performance. Copy it to a persistent disk later
-    if needed.
+    faster generation and improved query performance. Copy it to a persistent disk 
+    later if needed.
 * `nanodb.py`
   - A Python module that provides an object-oriented API to the SQLite database
     created by `conv2sqlite.py`. This allows easy querying and navigation
-    of blocks, accounts and relations between them.
+    of blocks, accounts and relations between them. The explorer uses this API.
 * `explorer.py`
   - A web-based account and block explorer similar to https://nano.org/en/explore/.
     It lacks certain features and is available mostly to inspect the 
@@ -50,8 +56,8 @@ Files
     1. `$ ./explorer.py nano.db`
     2. Browse to http://localhost:7777/known_accounts
 * `rainumbers.py`
-  - Utility module containing some routines to work with native Nano values, such
-    as accounts and balances
+  - Utility module containing some routines to work with native Nano values, 
+    such as accounts, balances and amounts.
 
 Python dependencies:
   - [APSW](https://pypi.python.org/pypi/apsw)
@@ -81,7 +87,7 @@ FAQ
 
 * What operating systems will this work on?
   - In principle it should work everywhere Python and the required dependencies
-    are available. In practice, it is developed and tested mostly on Linux. So
+    are available. In practice, it is developed and tested on Linux. So
     with other operating systems there might be some things not fully working (yet).    
 
 * Why is the code based on Python 3.x?
