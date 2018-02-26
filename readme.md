@@ -2,7 +2,7 @@ Nano tools
 ==========
  
 Some Python-based tools for exploring the Nano block-lattice and LMDB-based
-database that the Nano wallet and node software (see [1]) use. 
+database that the Nano wallet and node software at [1] use. 
 Nano (https://nano.org) is a cryptocurrency that aims to be feeless, 
 instant and high throughput. Note that this project has no relation to 
 the official Nano project.
