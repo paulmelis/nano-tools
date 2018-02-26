@@ -1,11 +1,11 @@
 {% macro nano_org_account(account) -%}
-    <a target=_blank" href="https://nano.org/en/explore/account/{{ account.address }}">
+    <a target=_blank" title="Look up account on nano.org explorer (opens new tab/window)" href="https://nano.org/en/explore/account/{{ account.address }}">
         <img src="{{ url_for('static', filename='images/nano_org.png') }}">
     </a>
 {%- endmacro -%}
 
 {% macro nano_org_block(block) -%}
-    <a target=_blank" href="https://nano.org/en/explore/block/{{ block.hash() }}">
+    <a target=_blank" title="Look up block on nano.org explorer (opens new tab/window)" href="https://nano.org/en/explore/block/{{ block.hash() }}">
         <img src="{{ url_for('static', filename='images/nano_org.png') }}">
     </a>
 {%- endmacro -%}

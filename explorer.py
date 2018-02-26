@@ -35,6 +35,10 @@ HOST = '127.0.0.1'
 PORT = 7777
 TRACEDB = False
 
+THOUSAND_SEPARATOR = ','
+#THOUSAND_SEPARATOR = '.'
+#THOUSAND_SEPARATOR = ' '
+
 DBFILE = sys.argv[1]    
 
 app = Flask(__name__)
@@ -64,14 +68,36 @@ def account_link(eval_ctx, account, show_address=True):
     if eval_ctx.autoescape:
         s = Markup(s)
     return s
+    
+def adjust_thousand_separator(s):
+    # Assumes s has format 1,000,000.00
+    if THOUSAND_SEPARATOR == ',':
+        return s
+    elif THOUSAND_SEPARATOR == '.':
+        s = s.replace('.', '#')
+        s = s.replace(',', '.')
+        s = s.replace('#', ',')
+    else:
+        s = s.replace(',', ' ')
+    return s
 
+@app.template_filter('format_amount2')            
+def format_amount_3(amount):
+    s = format_amount(amount, 2)
+    s = adjust_thousand_separator(s)
+    return Markup(s)
+    
 @app.template_filter('format_amount3')            
 def format_amount_3(amount):
-    return Markup(format_amount(amount, 3))
+    s = format_amount(amount, 3)
+    s = adjust_thousand_separator(s)
+    return Markup(s)
     
 @app.template_filter('format_amount6')            
 def format_amount_6(amount):
-    return Markup(format_amount(amount, 6))
+    s = format_amount(amount, 6)
+    s = adjust_thousand_separator(s)
+    return Markup(s)
 
 @app.template_filter('format_hash')            
 def format_hash(value):
