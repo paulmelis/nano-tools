@@ -24,9 +24,38 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# After numbers.cpp
 import hashlib
 
+# Amounts of raw
+UNIT_Gxrb               = 10**33        
+UNIT_Mxrb = UNIT_XRB    = 10**30
+UNIT_kxrb               = 10**27    # 10^-3 XRB     = mXRB
+UNIT_xrb                = 10**24    # 10^-6 XRB     = uXRB
+UNIT_mxrb               = 10**21    # 10^-9 XRB     = nXRB
+UNIT_uxrb               = 10**18    # 10^-12 XRB    = pXRB
+
+def format_amount(amount, precision):
+    
+    fmt = "{:,.%df}" % precision
+    
+    if amount == 0:
+        return '0 XRB'
+    
+    elif amount > UNIT_kxrb:
+        return (fmt+" XRB").format(amount / UNIT_Mxrb)
+
+    elif amount > UNIT_xrb:
+        return (fmt+"*10<sup>-3</sup> XRB").format(amount / UNIT_kxrb)
+        
+    elif amount > UNIT_mxrb:
+        return (fmt+"*10<sup>-6</sup> XRB").format(amount / UNIT_xrb)
+    
+    elif amount > UNIT_uxrb:
+        return (fmt+"*10<sup>-9</sup> XRB").format(amount / UNIT_mxrb)
+        
+    else:
+        return (fmt+"*10<sup>-12</sup> XRB").format(amount / UNIT_uxrb)    
+    
 def bin2hex(s):
     assert isinstance(s, bytes)
     return s.hex().upper()
@@ -61,6 +90,7 @@ def bin2balance_mxrb(b):
     assert isinstance(b, bytes)
     return 1.0 * int.from_bytes(b, 'big') / (10**24 * 10**6)
     
+# After numbers.cpp
     
 base58_reverse = "~012345678~~~~~~~9:;<=>?@~ABCDE~FGHIJKLMNOP~~~~~~QRSTUVWXYZ[~\\]^_`abcdefghi"
 
@@ -167,4 +197,9 @@ if __name__ == '__main__':
     a = a.to_bytes(length=32, byteorder='big')
     print(encode_account(a))
     
-    print(bin2balance(b'00000000000000000000000000000000'))
+    print(bin2balance_raw(b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'))
+    
+    print('0 XRB', format_amount_6( 0 ))
+    print('2.5 XRB', format_amount_6( int(2.5 * UNIT_XRB) ))
+    print('0.001 XRB', format_amount_6( int(0.001 * UNIT_XRB) ))
+    print('0.0001 XRB', format_amount_6( int(0.0001 * UNIT_XRB) ))

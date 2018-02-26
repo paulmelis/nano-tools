@@ -91,11 +91,11 @@
     {% set color = "#ff0000" if block.type == "send" else "#00c000" %}
     <tr>
         <td>Amount
-        <td style="color: {{color}}">{{ block.amount() | format_amount6 }} XRB
+        <td style="color: {{color}}">{{ block.amount() | format_amount6 }} 
     </tr>
     <tr>
         <td>Balance (after block)
-        <td>{{ block.balance() | format_amount6 }} XRB
+        <td>{{ block.balance() | format_amount6 }}
     </tr>
 {% endif %}
 

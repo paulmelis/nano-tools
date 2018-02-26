@@ -29,6 +29,7 @@ from flask import Flask, g, jsonify, render_template
 from jinja2 import evalcontextfilter, Markup
 
 from nanodb import NanoDatabase, KNOWN_ACCOUNTS
+from rainumbers import format_amount
 
 HOST = '127.0.0.1'
 PORT = 7777
@@ -63,16 +64,14 @@ def account_link(eval_ctx, account, show_address=True):
     if eval_ctx.autoescape:
         s = Markup(s)
     return s
-    
-@app.template_filter('format_amount3')            
-def format_amount_mxrb_3(value):
-    value = value / 10**30
-    return "{:,.3f}".format(value)
 
+@app.template_filter('format_amount3')            
+def format_amount_3(amount):
+    return Markup(format_amount(amount, 3))
+    
 @app.template_filter('format_amount6')            
-def format_amount_mxrb_6(value):
-    value = value / 10**30
-    return "{:,.6f}".format(value)
+def format_amount_6(amount):
+    return Markup(format_amount(amount, 6))
 
 @app.template_filter('format_hash')            
 def format_hash(value):
@@ -117,19 +116,6 @@ def known_accounts():
         
     return render_template('known_accounts.html', accounts=res)
 
-# XXX why is xrb_3jwrszth46rk1mu7rmb4rhm54us8yg1gw3ipodftqtikf5yqdyr7471nsg1k (binance) so slow ?
-# does it fetch the whole block chain of 78000 block?
-# hmm, kucoin xrb_1niabkx3gbxit5j5yyqcpas71dkffggbr6zpd3heui8rpoocm5xqbdwq44oh is much faster and
-# has more blocks (103k)!
-# it's not the chain() call, probably resolving all the amounts and balances.
-# will get better when we compute this in preprocessing
-# YYY add list of unpocketed sends to the account
-
-# balance still incorrect? 
-# http://localhost:7777/account/xrb_3jwrszth46rk1mu7rmb4rhm54us8yg1gw3ipodftqtikf5yqdyr7471nsg1k
-# http://localhost:7777/block/1977214 (1D54C237...144976F2)
-# gives exception
-# XXX compute current account balance
 @app.route('/account/<id_or_address>')
 @app.route('/account/<id_or_address>/<int:block_limit>')
 def account(id_or_address, block_limit=50):
