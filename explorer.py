@@ -25,7 +25,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import sys
-from flask import Flask, g, jsonify, render_template
+from flask import Flask, abort, flash, g, jsonify, redirect, render_template, request, url_for
 from jinja2 import evalcontextfilter, Markup
 
 from nanodb import NanoDatabase, KNOWN_ACCOUNTS
@@ -42,6 +42,7 @@ THOUSAND_SEPARATOR = ','
 DBFILE = sys.argv[1]    
 
 app = Flask(__name__)
+app.secret_key = 'doh!'     # XXX should generate this to a separate file
 
 # Custom filters
 
@@ -118,11 +119,8 @@ def close_connection(exception):
         db.close()
         
 # Pages
-    
-@app.route("/")
-def index():
-    return render_template('index.html')
 
+@app.route("/")
 @app.route("/known_accounts")
 def known_accounts():
     
@@ -191,6 +189,25 @@ def block(id_or_hash):
             previous=previous,
             next=next,
             id=block.id)
+        
+@app.route('/account_or_block', methods=['POST'])
+def account_or_block():
+    
+    if request.method == 'POST':
+        value = request.form['value']
+        value = value.strip()
+        
+        if value.startswith('xrb_'):
+            return redirect(url_for('account', id_or_address=value))
+        elif len(value) == 64:
+            return redirect(url_for('block', id_or_hash=value))
+        else:
+            flash("Value provided ('%s') doesn't look like account nor block hash" % value)
+            return redirect(url_for('known_accounts'))
+            
+    else:
+        abort(405)
+            
         
     
 if __name__ == '__main__':    

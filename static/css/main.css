@@ -39,3 +39,7 @@ a:active {
 .hash {
 	font-family: monospace;
 }
+
+.flashes {
+	color: red;
+}

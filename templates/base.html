@@ -36,13 +36,24 @@
                     <a class="nav-link" href="/block/0">Genesis block</a>
                 </li>
             </ul>
-            <form class="form-inline my-2 my-lg-0">
-                <input class="form-control mr-sm-2" size=68 type="search" placeholder="Account or block" aria-label="Account or block">
+            <form class="form-inline my-2 my-lg-0" action="{{ url_for('account_or_block') }}" method="POST">
+                <input class="form-control mr-sm-2" name='value' size=68 type="text" placeholder="Account or block" aria-label="Account or block">
                 <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Go</button>
             </form>
         </div>
     </nav>
     <div>&nbsp;</div>
+    
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <ul class=flashes>
+        {% for message in messages %}
+          <li>{{ message }}</li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+    
     {% block body %}
     {% endblock %}
 </body>
