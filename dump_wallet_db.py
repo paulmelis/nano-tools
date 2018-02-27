@@ -24,7 +24,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os, time
+import sys, os, time
 from enum import Enum
 from struct import unpack
 import lmdb, numpy
@@ -163,7 +163,17 @@ DATADIR = 'RaiBlocks'
 DBPREFIX = 'data.ldb'
 
 SUBDBS = ['accounts', 'blocks_info', 'change', 'checksum', 'frontiers', 'meta', 'open', 'pending', 'receive', 'representation', 'send', 'unchecked', 'unsynced', 'vote']
-SUBDBS = ['open']
+#SUBDBS = ['open']
+
+if len(sys.argv) > 1:
+    subdbs = sys.argv[1:]
+    for subdb in subdbs:
+        if subdb not in SUBDBS:
+            print('Invalid sub-db "%s"' % subdb)
+            print('Must be one or more of %s' % SUBDBS)
+            sys.exit(-1)
+            
+    SUBDBS = subdbs
 
 
 env = lmdb.Environment(

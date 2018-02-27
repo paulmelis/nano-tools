@@ -9,18 +9,26 @@
 <div class='container-fluid'>
 
     <div class='row'>
-
-        <div class='page-header'>
+        <div class='col-1'></div>
+        <div class='col-10'>
             <h4>Account {{account.address}} 
-            <a class="button" href="/block/{{account.first_block().id}}">&larrb;</a>
-            <a class="button" href="/block/{{account.last_block().id}}">&rarrb;</a>
+            {% set first_block = account.first_block() %}
+            {% set last_block = account.last_block() %}
+            {% if first_block %}
+                <a class="button" href="/block/{{ first_block.id }}">&larrb;</a>
+            {% endif %}
+            {% if last_block %}
+                <a class="button" href="/block/{{ last_block.id }}">&rarrb;</a>
+            {% endif %}
             {{ nano_org_account(account) }}
             </h4>
             <h5>{% if account.name() %}{{ account.name() }}{% endif %}</h5>
             {{ "{:,}".format(num_blocks) }} blocks
         </div>
-        
+        <div class='col-1'></div>
     </div>
+    
+    <div>&nbsp;</div>
 
     <div class='row'>
         <div class='col-1'></div>

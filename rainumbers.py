@@ -40,20 +40,20 @@ def format_amount(amount, precision):
     
     if amount == 0:
         return '0 XRB'
-    
-    elif amount > UNIT_kxrb:
+        
+    elif amount >= UNIT_Mxrb:
         return (fmt+" XRB").format(amount / UNIT_Mxrb)
-
-    elif amount > UNIT_xrb:
+    
+    elif amount >= UNIT_kxrb:
         return (fmt+"*10<sup>-3</sup> XRB").format(amount / UNIT_kxrb)
         
-    elif amount > UNIT_mxrb:
+    elif amount >= UNIT_xrb:
         return (fmt+"*10<sup>-6</sup> XRB").format(amount / UNIT_xrb)
     
-    elif amount > UNIT_uxrb:
+    elif amount >= UNIT_mxrb:
         return (fmt+"*10<sup>-9</sup> XRB").format(amount / UNIT_mxrb)
         
-    elif amount > 10**15:
+    elif amount >= UNIT_uxrb:
         return (fmt+"*10<sup>-12</sup> XRB").format(amount / UNIT_uxrb)  
 
     else:

@@ -241,7 +241,8 @@ class Account:
             cur.execute('select address from accounts where id=?', (id,))
             address = next(cur)[0]
         self.address = address
-        self.open_block = None
+        self.open_block_ = None
+        self.last_block_ = None
         self.name_ = None
 
     def __repr__(self):
@@ -250,27 +251,33 @@ class Account:
     # XXX rename to open_block()
     def first_block(self):
         """Return the first block in the chain. Should always return an "open" block"""
-        if self.open_block is not None:
-            return self.open_block
+        if self.open_block_ is not None:
+            return self.open_block_
         cur = self.db.cursor()
         cur.execute('select id from blocks where account=? and type=?', (self.id, 'open'))
         try:
             row = next(cur)
         except StopIteration:
             return None
-        self.open_block = Block(self.db, row[0])
-        return self.open_block
+        self.open_block_ = Block(self.db, row[0])
+        return self.open_block_
         
     def last_block(self):
         """Return the last (i.e. most recent) block in the chain"""
+        if self.last_block_ is not None:
+            return self.last_block_
         cur = self.db.cursor()
         cur.execute("""
             select block from block_info where account=? and chain_index in (
                 select max(chain_index) from block_info where account=?
             )
             """, (self.id, self.id))
-        id = next(cur)[0]
-        return Block(self.db, id)
+        try:
+            row = next(cur)
+        except StopIteration:
+            return None
+        self.last_block_ = Block(self.db, row[0])
+        return self.last_block_
         
     def chain_length(self):
         """Number of blocks in this account's chain"""
