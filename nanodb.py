@@ -100,6 +100,7 @@ class NanoDatabase:
             raise ValueError('Unknown account')
             
     def account_from_name(self, name):
+        # XXX we store the names in the DB as well, but never query them in this class, only in Account
         for address, accname in KNOWN_ACCOUNTS.items():
             if name == accname:
                 return self.account_from_address(address)
@@ -115,12 +116,47 @@ class NanoDatabase:
             res.append(Account(self, id, addr))
         return res
         
-    #def account_tree(self):
-    # All open blocks reference a send block from another account, which
-    # must have been created before the receiving account was opened. 
-    # Therefore, account creation can be represented as a tree, with 
-    # the Genesis account as the root.
-    
+    def account_tree(self, return_ids=False):
+        """
+        All open blocks reference a send block from another account, which
+        must have been created before the receiving account was opened. 
+        Therefore, account creation can be represented as a tree, with 
+        the Genesis account as the root.
+        
+        Returns the account tree as a dictionary:
+        
+        {
+            <parent-account>: [<child-account>, ...]
+            ...
+        }
+        
+        If return_ids=True instead of Account objects integer IDs
+        will be used.
+        """
+        
+        # Find account (by open block) and corresponding send block
+        cur = self.sqldb.cursor()
+        cur.execute("""
+            select b.account, i.account 
+            from blocks b, block_info i 
+            where b.type=? and b.source=i.block
+            """,
+            ('open',))
+            
+        res = {}
+            
+        for account, parent_account in cur:
+            if not return_ids:
+                account = self.account_from_id(account)
+                parent_account = self.account_from_id(parent_account)
+                
+            if parent_account not in res:
+                res[parent_account] = [ account ]
+            else:
+                res[parent_account].append(account)
+            
+        return res
+            
     def account_interactions(self, left_account, right_account):
         """
         Return a list of transactions (send blocks) between two accounts, 
@@ -246,6 +282,7 @@ class Account:
         self.name_ = None
 
     def __repr__(self):
+        # XXX include name, if set
         return '<Account #%d %s>' % (self.id, self.address)
 
     # XXX rename to open_block()
