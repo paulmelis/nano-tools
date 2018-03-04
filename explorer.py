@@ -28,7 +28,7 @@ import sys
 from flask import Flask, abort, flash, g, jsonify, redirect, render_template, request, url_for
 from jinja2 import evalcontextfilter, Markup
 
-from nanodb import NanoDatabase, KNOWN_ACCOUNTS
+from nanodb import NanoDatabase, KNOWN_ACCOUNTS, BlockNotFound, AccountNotFound
 from rainumbers import format_amount
 
 HOST = '127.0.0.1'
@@ -146,12 +146,19 @@ def account(id_or_address, block_limit=100):
     
     db = get_db()
     
-    if id_or_address.startswith('xrb_'):
-        account = db.account_from_address(id_or_address)
-    else:
-        id = int(id_or_address)
-        account = db.account_from_id(id)
-        
+    try:
+        if id_or_address.startswith('xrb_'):
+            account = db.account_from_address(id_or_address)
+        else:
+            id = int(id_or_address)
+            account = db.account_from_id(id)
+    except AccountNotFound:
+        flash('Account %s not found' % id_or_address)
+        return redirect(url_for('known_accounts'))
+    except ValueError:
+        flash('Invalid account ID "%s", must be integer >= 0' % id_or_address)
+        return redirect(url_for('known_accounts'))        
+            
     # XXX handle case where there's more blocks than the limit
     last_blocks = account.chain(limit=block_limit, reverse=True)
     unpocketed_blocks = account.unpocketed(limit=block_limit, reverse=True)
@@ -164,17 +171,25 @@ def account(id_or_address, block_limit=100):
             have_transactions=have_transactions,
             num_blocks=account.chain_length())
             
+            
 @app.route('/block/<id_or_hash>')
 def block(id_or_hash):
     
     db = get_db()
     
-    if len(id_or_hash) == 64:
-        block = db.block_from_hash(id_or_hash)
-    else:
-        id = int(id_or_hash)
-        block = db.block_from_id(id)
-    
+    try:
+        if len(id_or_hash) == 64:
+            block = db.block_from_hash(id_or_hash)
+        else:
+            id = int(id_or_hash)
+            block = db.block_from_id(id)
+    except BlockNotFound:
+        flash('Block %s not found' % id_or_hash)
+        return redirect(url_for('known_accounts'))
+    except ValueError:
+        flash('Invalid block ID "%s", must be integer >= 0' % id_or_hash)
+        return redirect(url_for('known_accounts'))
+        
     account = block.account()
     global_index = block.global_index()
     chain_index = block.chain_index()
@@ -189,6 +204,7 @@ def block(id_or_hash):
             previous=previous,
             next=next,
             id=block.id)
+        
         
 @app.route('/account_or_block', methods=['POST'])
 def account_or_block():

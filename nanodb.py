@@ -65,6 +65,16 @@ GENESIS_BALANCE_RAW     = 2**128 - 1
 
 assert KNOWN_ACCOUNTS[GENESIS_ACCOUNT] == 'Genesis'
 
+class NanoDBException(BaseException):
+    pass
+    
+class BlockNotFound(NanoDBException):
+    pass
+    
+class AccountNotFound(NanoDBException):
+    pass
+
+
 class NanoDatabase:
 
     def __init__(self, dbfile, trace=False):
@@ -88,7 +98,7 @@ class NanoDatabase:
             row = next(cur)
             return Account(self, id, row[0])
         except StopIteration:
-            raise ValueError('Unknown account')
+            raise AccountNotFound('Unknown account %d' % id)
 
     def account_from_address(self, addr):
         cur = self.sqldb.cursor()
@@ -97,7 +107,7 @@ class NanoDatabase:
             row = next(cur)
             return Account(self, row[0], addr)
         except StopIteration:
-            raise ValueError('Unknown account')
+            raise AccountNotFound('Unknown account %s' % addr)
             
     def account_from_name(self, name):
         # XXX we store the names in the DB as well, but never query them in this class, only in Account
@@ -105,7 +115,7 @@ class NanoDatabase:
             if name == accname:
                 return self.account_from_address(address)
                 
-        raise ValueError('Account name "%s" not found' % name)
+        raise AccountNotFound('Account with name "%s" not found' % name)
 
     def accounts(self):
         """Return a list of all accounts"""
@@ -206,7 +216,7 @@ class NanoDatabase:
             row = next(cur)
             return Block(self, int(row[0]))
         except StopIteration:
-            raise ValueError('No block with hash %s found' % hash)
+            raise BlockNotFound('No block with hash %s found' % hash)
 
     # XXX add blocks()?
 
