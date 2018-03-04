@@ -15,10 +15,10 @@
             {% set first_block = account.first_block() %}
             {% set last_block = account.last_block() %}
             {% if first_block %}
-                <a class="button" href="/block/{{ first_block.id }}">&larrb;</a>
+                <a class="button" title="First account block" href="/block/{{ first_block.id }}">&larrb;</a>
             {% endif %}
             {% if last_block %}
-                <a class="button" href="/block/{{ last_block.id }}">&rarrb;</a>
+                <a class="button" title="Last account block" href="/block/{{ last_block.id }}">&rarrb;</a>
             {% endif %}
             {{ nano_org_account(account) }}
             </h4>
