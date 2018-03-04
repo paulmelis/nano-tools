@@ -17,11 +17,14 @@
     <script src="{{ url_for('static', filename='js/jquery-3.2.1.slim.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/popper-1.12.9.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.5.13/dist/vue.js"></script>
     
     {% block head %}
     {% endblock %}
 </head>
 <body>
+    {% block bodystart %}
+    {% endblock %}
 
     <nav class="navbar navbar-expand-lg navbar-light bg-light">
         <div class="collapse navbar-collapse" id="navbarSupportedContent">
