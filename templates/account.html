@@ -23,6 +23,10 @@
             {{ nano_org_account(account) }}
             </h4>
             <h5>{% if account.name() %}{{ account.name() }}{% endif %}</h5>
+            <br>
+            {% if last_block %}
+                <h4>{{ last_block.balance() | format_amount6 }}</h4>
+            {% endif %}
             {{ "{:,}".format(num_blocks) }} blocks
         </div>
         <div class='col-1'></div>
