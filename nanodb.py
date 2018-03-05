@@ -343,12 +343,6 @@ class Account:
         If "limit" is set, at most limit blocks will be returned.
         """
 
-        # XXX how to include not pocketed blocks to this account?
-        #     i.e. only send from other account to here, e.g
-        #     https://nano.org/en/explore/block/D7C6604C37F23F05D4A98A365DB5B91EFFBEAD3E851EC4A49F579BBB8E88CFF1
-        # Or multiple not pocketed ones:
-        # https://nano.org/en/explore/account/xrb_39ymww61tksoddjh1e43mprw5r8uu1318it9z3agm7e6f96kg4ndqg9tuds4
-
         order = 'desc' if reverse else 'asc'
         q = 'select block from block_info where account=?'
         v = [self.id]
@@ -356,6 +350,53 @@ class Account:
             q += ' and type=?'
             v.append(type)
         q += ' order by chain_index %s' % order
+        if limit is not None:
+            q += ' limit ?'
+            v.append(limit)
+            
+        print(q, v)
+
+        res = []
+        cur = self.db.cursor()
+        cur.execute(q, v)
+
+        for row in cur:
+            b = Block(self.db, row[0])
+            res.append(b)
+
+        return res
+        
+    def chain2(self, type=None, start=0, limit=None, reverse=False):
+        """
+        Return all blocks in the chain, in sequence.
+        
+        reverse = False: open block first
+        reverse = True: last block first
+        
+        start: chain index of the first block returned
+        
+        If "type" is set, only blocks of the requested type will be returned.
+        If "limit" is set, at most limit blocks will be returned.
+        """
+
+        q = 'select block from block_info where account=?'
+        v = [self.id]
+        if type is not None:
+            q += ' and type=?'
+            v.append(type)
+            
+        if reverse:
+            q += ' and chain_index <= ?'
+        else:
+            q += ' and chain_index >= ?'
+            
+        if start < 0:
+            start = self.chain_length() + start
+        v.append(start)
+        
+        order = 'desc' if reverse else 'asc'
+        q += ' order by chain_index %s' % order
+        
         if limit is not None:
             q += ' limit ?'
             v.append(limit)

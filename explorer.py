@@ -160,18 +160,57 @@ def account(id_or_address, block_limit=100):
         return redirect(url_for('known_accounts'))        
             
     # XXX handle case where there's more blocks than the limit
-    last_blocks = account.chain(limit=block_limit, reverse=True)
+    #last_blocks = account.chain(limit=block_limit, reverse=True)
     unpocketed_blocks = account.unpocketed(limit=block_limit, reverse=True)
-    have_transactions = (len(last_blocks) + len(unpocketed_blocks)) > 0
+    have_transactions = True #(len(last_blocks) + len(unpocketed_blocks)) > 0
+    chain_length = account.chain_length()
     
     return render_template('account.html', 
             account=account,
-            last_blocks=last_blocks,
+            chain_length=chain_length,
+            #last_blocks=last_blocks,
             unpocketed_blocks=unpocketed_blocks,
             have_transactions=have_transactions,
             num_blocks=account.chain_length())
             
-            
+@app.route('/account_blocks/<id_or_address>')
+@app.route('/account_blocks/<id_or_address>/<int:start>')
+@app.route('/account_blocks/<id_or_address>/<int:start>/<int:num_blocks>')
+def account_blocks(id_or_address, start=-1, num_blocks=50):
+    """
+    start: chain index or first block
+    """
+    
+    db = get_db()
+    
+    try:
+        if id_or_address.startswith('xrb_'):
+            account = db.account_from_address(id_or_address)
+        else:
+            id = int(id_or_address)
+            account = db.account_from_id(id)
+    except AccountNotFound:
+        flash('Account %s not found' % id_or_address)
+        return redirect(url_for('known_accounts'))
+    except ValueError:
+        flash('Invalid account ID "%s", must be integer >= 0' % id_or_address)
+        return redirect(url_for('known_accounts'))
+        
+    chain_length = account.chain_length()
+    if start < 0:
+        start = chain_length + start
+    blocks = account.chain2(start=start, limit=num_blocks, reverse=True)
+    
+    return render_template('account_blocks.html',
+            account=account,
+            #chain_length=chain_length,
+            blocks=blocks,
+            next_start=start+num_blocks,
+            previous_start=start-num_blocks,
+            start=start,
+            )
+
+
 @app.route('/block/<id_or_hash>')
 def block(id_or_hash):
     
