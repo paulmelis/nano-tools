@@ -32,7 +32,7 @@ from rainumbers import bin2hex, hex2bin
 
 KEYLEN = 32     # bytes, i.e. 256 bits
 
-# From rai/node/wallet.cpp
+# After rai/node/wallet.cpp
 KEY_VERSION                         = '%064x' % 0       # Wallet version number
 KEY_WALLET_SALT                     = '%064x' % 1       # Random number used to salt private key encryption
 KEY_ENCRYPTED_WALLET_KEY            = '%064x' % 2       # Key used to encrypt wallet keys, encrypted itself by the user password
@@ -40,8 +40,6 @@ KEY_CHECK_VALUE                     = '%064x' % 3       # Check value used to se
 KEY_WALLET_REPRESENTATIVE           = '%064x' % 4       # Representative account to be used if we open a new account
 KEY_WALLET_SEED_DETERMINISTIC_KEYS  = '%064x' % 5       # Wallet seed for deterministic key generation
 KEY_INDEX_DETERMINISTIC_KEYS        = '%064x' % 6       # Current key index for deterministic keys
-
-ZEROS = '\x00'*32
 
 if len(sys.argv) != 2:
     print('usage: %s file.json' % sys.argv[0])
@@ -65,9 +63,12 @@ encrypted_wallet_key = hex2bin(wallet[KEY_ENCRYPTED_WALLET_KEY])
 initial_counter_value = int.from_bytes(wallet_salt[:16], byteorder='big')
 
 # Get user password
+
 user_password = getpass.getpass('Password: ')
 
-# Derive key using Argon2. Uses full wallet salt
+# Derive key using Argon2
+# Note: uses full wallet salt
+
 derived_key = argon2.argon2_hash(user_password, wallet_salt, buflen=KEYLEN,
                     t=1, m=64*1024, p=1, argon_type=0)
 
@@ -77,22 +78,22 @@ derived_key = argon2.argon2_hash(user_password, wallet_salt, buflen=KEYLEN,
 # Note: uses only the first half of the salt for the CTR mode
 
 counter = Counter.new(128, initial_value=initial_counter_value)
-
 aes = AES.new(derived_key, AES.MODE_CTR, counter=counter)
+
 decrypted_wallet_key = aes.decrypt(encrypted_wallet_key)
 
 #print(bin2hex(decrypted_wallet_key))
 
-# Password check: encrypt all zeros with the decrypted wallet key
-# Check against stored value
-# Again uses only the first half of the salt
+# Password check: 
+# - Encrypt zeros with the (decrypted) wallet key
+# - Check against stored value
+# - Also uses only the first half of the salt
 
 counter = Counter.new(128, initial_value=initial_counter_value)
-
 aes = AES.new(decrypted_wallet_key, AES.MODE_CTR, counter=counter)
-result = aes.encrypt(ZEROS)
-result = bin2hex(result).upper()
+result = aes.encrypt('\x00'*32)
 
+result = bin2hex(result).upper()
 check = wallet[KEY_CHECK_VALUE]
 
 if result == check:
