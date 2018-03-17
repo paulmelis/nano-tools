@@ -71,7 +71,7 @@ elif type == 'change':
     previous = bytes.fromhex(block['previous'])
     representative = rainumbers.decode_account(block['representative'])
     hashables = [previous, representative]
-
+    
 # utx: account, previous, representative, balance, link
 
 d = hashlib.blake2b(digest_size=32)
