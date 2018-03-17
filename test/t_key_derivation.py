@@ -14,7 +14,7 @@ assert pubkey.hex().upper() == '3B6A27BCCEB6A42D62A3A8D02A6F0D73653215771DE243A6
 
 def create_context():
     # Note: needs Python 3.6 or newer
-    return hashlib.blake2b(digest_size=32)
+    return hashlib.blake2b(digest_size=64)
     
 def init(context):
     pass
