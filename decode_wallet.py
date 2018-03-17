@@ -125,8 +125,8 @@ if result != check:
     print('PASSWORD IS INCORRECT')
     sys.exit(-1)
     
-# Get encrypted seed for deterministic key generation, 
-# i.e. THE wallet seed, and decrypt it.
+# Get encrypted seed for deterministic key generation
+# (i.e. THE wallet seed as entered in the Nano wallet) and decrypt it.
 # Note: uses only the first half of the salt for the CTR mode
 
 counter = Counter.new(128, initial_value=initial_counter_value)
