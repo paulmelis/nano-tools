@@ -22,6 +22,9 @@ Paul Melis (paul.melis@gmail.com)
 Files
 =====
 
+Note: all Python scripts are developed with Python 3.x. They might work for 2.x as well,
+but this isn't tested. 
+
 * `dump_wallet_db.py`
   - Low-level tool to inspect the contents of the LMDB database used by the
     Nano wallet/node software.
