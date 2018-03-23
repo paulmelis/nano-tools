@@ -22,6 +22,9 @@ Paul Melis (paul.melis@gmail.com)
 Files
 =====
 
+Note: all Python scripts are developed with Python 3.x. They might work for 2.x as well,
+but this isn't tested. 
+
 * `dump_wallet_db.py`
   - Low-level tool to inspect the contents of the LMDB database used by the
     Nano wallet/node software.
@@ -60,11 +63,15 @@ Files
     such as accounts, balances and amounts.
 
 Python dependencies:
+
   - [APSW](https://pypi.python.org/pypi/apsw)
   - [lmdb](https://pypi.python.org/pypi/lmdb) (conv2sqlite.py, dump_wallet_db.py)
   - [numpy](http://www.numpy.org/) (dump_wallet_db.py only)
   - [click](https://pypi.python.org/pypi/click) (conv2sqlite.py only)
   - [Flask](http://flask.pocoo.org/) (explorer.py only)
+  
+Different versions of these packages will probably work. Development is
+done using APSW 3.21.0, lmdb 0.93, numpy 1.14.1, click 6.7, flask 0.12.2.
 
 
 License

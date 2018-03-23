@@ -68,7 +68,6 @@ def hex2bin(h):
     return bytes.fromhex(h)
     
 def int2hex(v):
-    print(v)
     assert isinstance(v, int)
     s = hex(v)
     assert s.startswith('0x')
@@ -119,6 +118,10 @@ def account_decode(value):
     return chr(ord(account_reverse[ord(value) - 0x30]) - 0x30)
 
 def decode_account(source_a):
+    """
+    Take a string of the form "xrb_..." of length 64 and return
+    the associated public key (as a bytes object)
+    """
     assert len(source_a) == 64
     assert source_a.startswith('xrb_') or source_a.startswith('xrb-') 
     
@@ -136,12 +139,12 @@ def decode_account(source_a):
         number_l <<= 5
         number_l += ord(byte)
         
-    account = number_l >> 40
+    account = (number_l >> 40).to_bytes(length=32, byteorder='big')
+    
+    # The digest to check is in the lowest 40 bits of the address
     check = number_l & 0xffffffffff
-
-    # Digest to check is in the lowest 40 bits of the address
     hash = hashlib.blake2b(digest_size=5)
-    hash.update(int.to_bytes(account, length=32, byteorder='big'))
+    hash.update(account)
     validation = hash.digest()
     
     assert check.to_bytes(length=5, byteorder='little') == validation
@@ -163,7 +166,12 @@ def decode_account(source_a):
     
     return account
 
+
 def encode_account(account):
+    """
+    Given an account (as a bytes object of length 32) encode it in a 
+    readable string of the form "xrb_..."
+    """
     
     assert isinstance(account, bytes)
     assert len(account) == 32
@@ -171,12 +179,13 @@ def encode_account(account):
     hash = hashlib.blake2b(digest_size=5)
     hash.update(account)
     check = hash.digest()
-        
+    # Reverse byte order
     check = int.from_bytes(check, byteorder='big').to_bytes(length=5, byteorder='little')
 
-    number = account + check    # concatenate byte strings
+    number = account + check    
     number = int.from_bytes(number, byteorder='big')
     
+    # Build up string in reverse order
     destination = ''
     
     for i in range(60):
@@ -186,23 +195,22 @@ def encode_account(account):
         
     destination += "_brx"
     
+    # Return the reverse to get the correct string
     return destination[::-1]
 
 
 if __name__ == '__main__':
-    
-    A = 'xrb_1ziq3bxdo49abq5nii4qxq6pho1z788qtqias1h3mb1xojnisj96kibyh8xx'
-    print(A)
-    
+        
+    A = 'xrb_1111111111111111111111111111111111111111111111111111hifc8npp'
+    print(A)    
     a = decode_account(A)
-    print (a, int2hex(a))
-    
-    a = a.to_bytes(length=32, byteorder='big')
+    print(a)
     print(encode_account(a))
+    assert encode_account(a) == A
     
     print(bin2balance_raw(b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'))
     
-    print('0 XRB', format_amount_6( 0 ))
-    print('2.5 XRB', format_amount_6( int(2.5 * UNIT_XRB) ))
-    print('0.001 XRB', format_amount_6( int(0.001 * UNIT_XRB) ))
-    print('0.0001 XRB', format_amount_6( int(0.0001 * UNIT_XRB) ))
+    print('0 XRB', format_amount( 0, 6 ))
+    print('2.5 XRB', format_amount( int(2.5 * UNIT_XRB), 6 ))
+    print('0.001 XRB', format_amount( int(0.001 * UNIT_XRB), 6 ))
+    print('0.0001 XRB', format_amount( int(0.0001 * UNIT_XRB), 6 ))
