@@ -22,8 +22,20 @@ Paul Melis (paul.melis@gmail.com)
 Files
 =====
 
-Note: all Python scripts are developed with Python 3.x. They might work for 2.x as well,
-but this isn't tested. 
+Platform notes: 
+
+* All Python scripts are developed for Python 3.x. They might work for 2.x as well,
+  but this isn't tested. 
+* In similar fashion the main development platform is Linux, although Windows and
+  macOS should work as well. If you find issues on the non-Linux platforms please
+  submit an issue report at https://github.com/paulmelis/nano-tools/issues
+* On 32-bit systems, **or when using a 32-bit version of Python on a 64-bit system**,
+  it is not possible to read the Nano LMDB database when its size is >2GB. This
+  limitation has to do with the memory-mapping used by LMDB. 
+  In practice, a fully synced node/wallet currently uses more than 4GB, so using the 
+  tools below isn't possible on these systems.
+  
+The interesting scripts are:
 
 * `dump_wallet_db.py`
   - Low-level tool to inspect the contents of the LMDB database used by the
@@ -119,7 +131,8 @@ FAQ
   - This has not been tested by the author of this software. It is recommended
     that you NOT have the wallet/node running while doing the conversion,
     regardless of what the LMDB docs say about concurrent access. Also, these
-    scripts might not handle unexpected changes to the LMDB database well.
+    scripts might not handle unexpected changes to the LMDB database, while
+    reading it, very well.
 
 * Can I update the database after letting the wallet/node receive new blocks?
   - This is currently not implemented. The only way to update is to rebuild 
