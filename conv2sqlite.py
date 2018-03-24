@@ -51,7 +51,7 @@ elif sys.platform == 'darwin':
     # XXX untested
     RAIBLOCKS_LMDB_DB = os.path.join(os.environ['HOME'], 'Library', DATADIR, DBPREFIX)
 else:
-    raise ValueError('Unknown platform: %s' sys.platform)
+    raise ValueError('Unknown platform: %s' % sys.platform)
 
 DEFAULT_SQLITE_DB = 'nano.db'
 
